@@ -7,6 +7,7 @@
 #include "platform/platform.h"
 #include "codeptr.h"
 #include "video/video.h"
+#include "enhanced/enhanced.h"    /* ENH: horizon capture */
 
 enum {
     H_SPACING = 0x031A, H_BANDS = 0x031C, H_STEP = 0x031E, H_ON = 0x0320, H_BUF = 0x0322,
@@ -23,7 +24,12 @@ enum {
 
 static s16 abs16(s16 v) { return (s16)(v < 0 ? (u16)-v : (u16)v); }   /* cwd/xor/sub */
 static void window_rect(void) { gfx_rect(CX0, CY0, (s16)(CX1 - CX0 + 1), (s16)(CY1 - CY0 + 1)); }
-static void call_cb(u32 cb) { if (cb) codeptr_lookup(fp_u32(cb))(); }
+static void call_cb(u32 cb)
+{
+    enh_sky_callback(true);                                /* ENH: sun, moon, stars: not the horizon */
+    if (cb) codeptr_lookup(fp_u32(cb))();
+    enh_sky_callback(false);                               /* ENH */
+}
 
 /* ================================================================================================
  * 0a88 — span-list helpers (L far, n = L[+2] entries) */
@@ -321,7 +327,14 @@ void horizon_fill_cols(void)
 
 /* AP 4d6e:0076 — sky above / sea below the horizon, the callback (sun, moon, stars) in between.
  * a0 = sky base colour, a1 = sea colour (the dword DS:5BDB), a2 = pitch, a3 = roll, a4 = callback. */
+static void draw_sky_body(u16 a0, u16 a1, u16 a2, u16 a3, u32 a4);
 void draw_sky(u16 a0, u16 a1, u16 a2, u16 a3, u32 a4)
+{
+    enh_sky(a0, a1);                                       /* ENH: the horizon is drawn again on the host */
+    draw_sky_body(a0, a1, a2, a3, a4);
+    enh_sky_end();                                         /* ENH */
+}
+static void draw_sky_body(u16 a0, u16 a1, u16 a2, u16 a3, u32 a4)
 {
     DSW(H_SKY) = a0;
     DSW(H_SEA) = a1;

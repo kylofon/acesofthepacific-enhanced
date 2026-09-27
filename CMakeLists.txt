@@ -15,7 +15,7 @@ target_include_directories(nuked_opl3 PUBLIC third_party/nuked-opl3)
 
 # Coordinator files in src/, then one glob per module directory (PORTING.md "Module layout"): a module
 # owner adds <module>/<file>.c as listed in port/modules.csv and it is built without touching this file.
-set(AOTP_MODULES platform video sound shell_ui shell_data sim_flow sim_world render3d game)
+set(AOTP_MODULES platform video sound shell_ui shell_data sim_flow sim_world render3d game enhanced)   # ENH: src/enhanced
 file(GLOB AOTP_SOURCES CONFIGURE_DEPENDS src/*.c)
 foreach(m ${AOTP_MODULES})
     file(GLOB m_sources CONFIGURE_DEPENDS src/${m}/*.c)
@@ -40,6 +40,14 @@ else()
     if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
         target_compile_options(aotp_enhanced PRIVATE -Wno-format-truncation)
     endif()
+endif()
+# ENH: the host renderer of the enhanced view (src/enhanced) runs per displayed frame at the output
+# resolution: always optimised, whatever the build type (the faithful engine keeps the project's flags).
+file(GLOB AOTP_ENH_SOURCES CONFIGURE_DEPENDS src/enhanced/*.c)
+if(MSVC)
+    set_source_files_properties(${AOTP_ENH_SOURCES} PROPERTIES COMPILE_OPTIONS "/O2")
+else()
+    set_source_files_properties(${AOTP_ENH_SOURCES} PROPERTIES COMPILE_OPTIONS "-O2")
 endif()
 if(WIN32)
     add_custom_command(TARGET aotp_enhanced POST_BUILD

@@ -10,6 +10,7 @@
 #include "video/video.h"
 #include "platform/platform.h"
 #include "sim_world/sim_world.h"   /* ces_check (07fe:000a) */
+#include "enhanced/enhanced.h"     /* ENH: instance poses */
 
 /* ================================================================================================
  * Sprite helpers (AP 2edf / PS 46d0)
@@ -191,7 +192,7 @@ u8 ts_visible_lod(void)
         DSSL(c + 4) = f > d ? f : d;
         s32 A = (s32)apparent_size(c);
         if (A > 0x100) KW(CS_APP_SIZE) = 0x100;
-        else { KW(CS_APP_SIZE) = (u16)A; if ((u16)A == 0) goto out; }
+        else { KW(CS_APP_SIZE) = (u16)A; if ((u16)A == 0 && !enh_pass) goto out; }   /* ENH: sub-pixel kept */
         DSL(c) = (u32)labs32(KSL(CS_E_POS)) - (u32)R;
         DSL(c + 8) = (u32)labs32(KSL(CS_E_POS + 8)) - (u32)R;
         DSL(c + 4) = (u32)ey + (u32)R;
@@ -344,7 +345,7 @@ void part_walk(u16 self, s16 n, u16 *list) { part_walk_(self, n, list, list + PA
 void ts_draw(u16 o)
 {
     u8 *K = cs_blk();
-    if (bm_is_bitmap((s16)DSW(o))) { bm_draw(o); return; }
+    if (bm_is_bitmap((s16)DSW(o))) { if (!enh_pass) bm_draw(o); return; }   /* ENH: bitmaps not re-drawn */
     FarPtr hdr = shape_ptr((s16)DSW(o));
     KW(CS_SHAPE_PTR + 2) = hdr.seg;
     KW(CS_SHAPE_PTR) = hdr.off;
@@ -362,6 +363,7 @@ void ts_draw(u16 o)
     s32 lim3f = ps ? 0x3FAC : (0x3FAC >> (ns >= 32 ? 31 : ns));
     s32 R = KSL(CS_RADIUS);
     u8 mode;
+    u16 enh_shift = 0;                                           /* ENH: eye coordinates >> this */
     if (KW(CS_OBJ_SHIFT) == 0 && R <= 0x3FAC && lim7d >= (s32)(KL(CS_E_DIST) + (u32)R)) mode = 0;
     else {
         obj_near_depth();
@@ -372,9 +374,11 @@ void ts_draw(u16 o)
             KSL(CS_E_DEPTH) = KS(CS_E_DEPTH16);
             for (int i = 0; i < 3; i++) KSL(CS_E_POS + 4 * i) = KS(CS_E_POS16 + 2 * i);
             mode = KW(CS_OBJ_SHIFT) ? 3 : 0;
+            enh_shift = k;
         } else mode = lim3f > R ? 1 : 2;
     }
     KB(CS_DRAW_MODE) = mode;
+    enh_ts_object(enh_shift);                                    /* ENH: the instance's pose */
     /* LOD */
     s16 nlod = (s16)rd16(hdr.seg, (u16)(hdr.off + 8));
     u16 lod = rd16(hdr.seg, (u16)(hdr.off + 0x0A));
@@ -383,6 +387,8 @@ void ts_draw(u16 o)
         s16 i = 0;
         while (i < nlod && (s16)KW(CS_APP_SIZE) > (s16)rd16(hdr.seg, lod)) { i++; lod = (u16)(lod + 6); }
         if (i == nlod) lod = (u16)(lod - 6);
+        if (enh_lod_finest() && nlod > 0)                  /* ENH: the finest LOD in the enhanced pass */
+            lod = (u16)(rd16(hdr.seg, (u16)(hdr.off + 0x0A)) + 6 * (nlod - 1));
     }
     KW(CS_VTX_KEY + 2) = 0;
     KW(CS_VTX_KEY) = 0;

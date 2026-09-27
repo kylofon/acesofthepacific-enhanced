@@ -36,10 +36,61 @@ void ems_init(void)
     ivt_set(0x67, far_make(EMS_DEV_SEG, 0));
 }
 
+/* ENH: undo journal for the enhanced view's second scene pass (enhanced/enhanced.c, ENHANCED.md
+ * "Stage 2 design"): the logical pages overwritten by a write-back while it is on are saved first and put
+ * back, with the mapping and the handle table, by ems_journal_end. */
+typedef struct { s32 h, l; u8 *data; } JPage;
+static bool j_on;
+static JPage *j_pages;
+static int j_n, j_cap;
+static s32 j_phys[4][2];
+static Handle j_handles[EMS_MAX_HANDLES];
+static u16 j_used;
+
+static void journal_page(s32 h, s32 l)
+{
+    for (int i = 0; i < j_n; i++) if (j_pages[i].h == h && j_pages[i].l == l) return;
+    if (j_n == j_cap) {
+        int c = j_cap ? j_cap * 2 : 8;
+        JPage *q = SDL_realloc(j_pages, sizeof(JPage) * (size_t)c);
+        if (!q) host_fatal("out of memory (EMS journal)");
+        for (int i = j_cap; i < c; i++) q[i].data = NULL;
+        j_pages = q; j_cap = c;
+    }
+    JPage *j = &j_pages[j_n++];
+    if (!j->data && !(j->data = SDL_malloc(PAGE))) host_fatal("out of memory (EMS journal)");
+    j->h = h; j->l = l;
+    memcpy(j->data, handles[h].data + (u32)l * PAGE, PAGE);
+}
+
+void ems_journal_begin(void)
+{
+    j_on = true;
+    j_n = 0;
+    memcpy(j_phys, phys, sizeof phys);
+    memcpy(j_handles, handles, sizeof handles);
+    j_used = pages_used;
+}
+
+bool ems_journal_end(void)
+{
+    j_on = false;
+    bool same = j_used == pages_used;
+    for (int i = 0; same && i < EMS_MAX_HANDLES; i++)
+        same = handles[i].used == j_handles[i].used && handles[i].data == j_handles[i].data;
+    if (!same) return false;                                  /* allocations changed: cannot undo */
+    for (int i = 0; i < j_n; i++)
+        memcpy(handles[j_pages[i].h].data + (u32)j_pages[i].l * PAGE, j_pages[i].data, PAGE);
+    memcpy(handles, j_handles, sizeof handles);
+    memcpy(phys, j_phys, sizeof phys);                        /* the window itself is in mem[] (caller) */
+    return true;
+}
+
 static void write_back(void)
 {
     for (int p = 0; p < 4; p++) {
         if (phys[p][0] < 0) continue;
+        if (j_on) journal_page(phys[p][0], phys[p][1]);        /* ENH */
         Handle *h = &handles[phys[p][0]];
         memcpy(h->data + (u32)phys[p][1] * PAGE, frame(p), PAGE);
     }

@@ -3,6 +3,7 @@
  * sim_flow_cockpit.md §3, §6.4. main, prefs_load/save and sim_exit are platform's (ap_main.c). */
 #include "sim_flow/sfa_priv.h"
 #include "platform/vga.h"
+#include "enhanced/enhanced.h"   /* ENH: pixel tags */
 
 #define ASSERT_INIT_C far_make(SEG(0x386B), 0)   /* "init.c" */
 
@@ -440,7 +441,7 @@ static void span_fill_solid(FarPtr sp)
         if (x1 >= x0) {
             for (s32 x = x0; x <= x1; x++) {
                 s32 a = (s32)y * 320 + x;
-                if (pg && a >= 0 && a < 0x10000) pg[a] = c;
+                if (pg && a >= 0 && a < 0x10000) { pg[a] = c; enh_tag(pg + a); }   /* ENH: tag */
             }
         }
         y++;

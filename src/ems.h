@@ -36,3 +36,8 @@ u8 ems_realloc(u16 handle, u16 pages);                       /* 51h */
 
 /* Port helper: write the window back to its owners (e.g. before inspecting handle memory). */
 void ems_sync(void);
+
+/* ENH: undo journal around the enhanced view's second scene pass (the caller saves mem[]). end returns
+ * false if handles were allocated or freed meanwhile (nothing is undone then). */
+void ems_journal_begin(void);
+bool ems_journal_end(void);

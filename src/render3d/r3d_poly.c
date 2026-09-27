@@ -11,6 +11,7 @@
 #include "codeptr.h"
 #include "video/video.h"      /* PORT: video.h uses CodeFn without including codeptr.h */
 #include "symbols_ap.h"
+#include "enhanced/enhanced.h"   /* ENH: polygon capture */
 
 /* ================================================================================================
  * Near plane and camera (render3d_math.md §4.1, §4.2, §4.6)
@@ -259,6 +260,7 @@ listed:
             KW(CS_POLY_IDX + 2 * KW(CS_POLY_N)) = bx;
             KW(CS_POLY_N)++;
         }
+        enh_poly(false);                                        /* ENH: the vertex list in eye space */
         if (behind) near_clip16();
         else {
             u16 n = KW(CS_POLY_N);
@@ -273,7 +275,9 @@ listed:
         if (rd8(es, di) & 0x10) poly_fill_bitmap4(es, di);
         else {
             if (KB(CS_NEED_CLIP)) clip2d16();
+            enh_poly_fill();                                    /* ENH: recorded, fill tagged as world */
             poly_fill();
+            enh_poly_done();                                    /* ENH */
         }
     }
 }

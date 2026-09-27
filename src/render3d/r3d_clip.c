@@ -6,6 +6,7 @@
  * proj32; near_isect32a uses the focal length and no shift. The data block cs_state_block
  * (277a:0a13 / 3d50:3e53) is the CS state accessed through CS_* (r3d_priv.h). */
 #include "render3d/r3d_priv.h"
+#include "enhanced/enhanced.h"   /* ENH: polygon capture */
 
 /* ================================================================================================
  * Per-object set-up (render3d_math.md §4.7)
@@ -467,6 +468,7 @@ void part_draw32(FarPtr var)
             KW(CS_POLY_IDX + 2 * KW(CS_POLY_N)) = bx;
             KW(CS_POLY_N)++;
         }
+        enh_poly(true);                                       /* ENH: the vertex list in eye space */
         if (behind) {
             if (KB(CS_DRAW_MODE) == 1) near_clip32a(); else near_clip32b();
         } else {
@@ -480,7 +482,9 @@ void part_draw32(FarPtr var)
         }
         poly_add_centre32();
         if (KB(CS_NEED_CLIP)) { if (KB(CS_DRAW_MODE) == 1) clip2d32a(); else clip2d32b(); }
+        enh_poly_fill();                                      /* ENH: recorded, fill tagged as world */
         poly_fill();                                          /* flag 10h ignored in the 32-bit modes */
+        enh_poly_done();                                      /* ENH */
     }
 }
 

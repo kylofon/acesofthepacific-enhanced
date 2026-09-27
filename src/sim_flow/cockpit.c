@@ -117,10 +117,11 @@ void lso_load(void)
     heap_hook();
 }
 
-/* AP 50c0:004a */
+/* AP 50c0:004a — DS:11F0 holds the bitmap table from bmp_load_ems, freed with bmp_free_ems
+ * (1d32:2170), not a sprite-set index */
 void lso_free(void)
 {
-    if (DSW(0x11F0)) sprite_set_free(DSW(0x11F0));
+    if (DSW(0x11F0)) bmp_free_ems(DSW(0x11F0));
     DSW(0x11F0) = 0;
 }
 

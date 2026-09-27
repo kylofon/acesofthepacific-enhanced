@@ -461,10 +461,10 @@ void drv_nib_or_hi(FarPtr src, u16 xb, u16 y, u16 w, u16 rows)
         do {
             u8 b0 = rd8(ds, si++), b1 = rd8(ds, si++);
             u8 *p;
-            if ((p = vmem(wseg, di, 0))) *p |= b0 & 0xF0;
-            if ((p = vmem(wseg, di, 1))) *p |= (u8)(b0 << 4);
-            if ((p = vmem(wseg, di, 2))) *p |= b1 & 0xF0;
-            if ((p = vmem(wseg, di, 3))) *p |= (u8)(b1 << 4);
+            if ((p = vmem(wseg, di, 0))) { *p |= b0 & 0xF0; enh_tag(p); }         /* ENH: tags */
+            if ((p = vmem(wseg, di, 1))) { *p |= (u8)(b0 << 4); enh_tag(p); }
+            if ((p = vmem(wseg, di, 2))) { *p |= b1 & 0xF0; enh_tag(p); }
+            if ((p = vmem(wseg, di, 3))) { *p |= (u8)(b1 << 4); enh_tag(p); }
             di++;
         } while (--g);
         y++;

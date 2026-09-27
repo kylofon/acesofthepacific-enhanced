@@ -7,6 +7,7 @@
 #include "video/video.h"
 #include "sim_world/sim_world.h"
 #include "sim_flow/sim_flow.h"
+#include "enhanced/enhanced.h"    /* ENH: range of the enhanced pass */
 
 enum {
     E_OVERCAST_A = 0x4512, E_OVERCAST_B = 0x42C9, E_CAMERA = 0x437E,
@@ -79,7 +80,7 @@ void range_cull(void)
             u16 o = DSW(di);
             if (DSW(o) & 0x100) continue;
             u32 d = ldist3((u16)(o + 4), E);
-            if (d > 200000 || cloud_blocks_segment((u16)(o + 4), E)) DSW(o) |= 0x100;
+            if (enh_dist(d) > 200000 || cloud_blocks_segment((u16)(o + 4), E)) DSW(o) |= 0x100;   /* ENH */
         }
     }
     stk_release(mk);

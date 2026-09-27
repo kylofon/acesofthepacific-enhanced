@@ -19,9 +19,12 @@ void host_set_tick_handler(void (*handler)(void));
 
 /* Source of the displayed image: fills a w x h XRGB8888 frame and returns true if it changed since the
  * last call. Installed by the VGA model (platform/vga.c). Shown with 4:3 aspect unless --aspect 1:1. */
-#define HOST_FRAME_MAX_W 320
-#define HOST_FRAME_MAX_H 200
+#define HOST_FRAME_MAX_W 4096          /* ENH: 320 in the faithful port; the enhanced view is up to 8x */
+#define HOST_FRAME_MAX_H 2048
 void host_set_frame_source(bool (*compose)(u32 *xrgb), int w, int h);
+/* ENH: where the 320x200 screen lies inside the frame, in frame pixels (for the mouse; default = the whole
+ * frame). The 200 lines are shown 1.2 times as tall as wide with --aspect 4:3, whatever the frame's size. */
+void host_set_screen_rect(int x0, int y0, int w, int h);
 
 /* Runs due timer ticks, handles window/input events, runs the scripted keys and presents the screen
  * when it changed. Every busy-wait loop of the original (tick waits, key polls, retrace polls) must
@@ -70,6 +73,12 @@ void host_audio_lock(void);
 void host_audio_unlock(void);
 void host_set_sound_service(void (*service)(void));
 
+/* ---- ENH: parallel loops for the enhanced view's host renderer. host_parallel runs fn(i, ctx) for every
+ * i in [0, n) on a pool of worker threads and the caller, and returns when all have finished. fn must
+ * not call back into the game or the host. host_cpu_count = the number of logical processors. */
+void host_parallel(int n, void (*fn)(int i, void *ctx), void *ctx);
+int  host_cpu_count(void);
+
 /* ---- Game files: case-insensitive lookup inside the game directory. Returns a malloc'd path (free with
  * host_free) or NULL if the file does not exist; with create = true the path of a new file. */
 char *host_game_path(const char *name, bool create);
@@ -87,6 +96,7 @@ _Noreturn void host_fatal(const char *fmt, ...);
  *                             that many seconds after start-up; "p" after the codes only presses (held),
  *                             "r" only releases: "9:48p,20:48r" holds Up for 11 s. Grey keys are written
  *                             with their E0 prefix, e.g. e048.
+ *   AOTP_CLICKS="<seconds>:<x>:<y>,..."  ENH: left click at (x, y) of the 320x200 screen at that time
  *   AOTP_TRACE=1              prints program switches and exit codes to stderr */
 void host_snapshot_now(const char *tag);                     /* forces a snapshot (if enabled) */
 bool host_trace(void);

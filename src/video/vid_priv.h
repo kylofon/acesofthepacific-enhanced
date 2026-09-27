@@ -11,6 +11,7 @@
 #include "platform/vga.h"
 #include "prog.h"
 #include "video/video.h"
+#include "enhanced/enhanced.h"   /* ENH: pixel tags */
 
 static inline u16 drv_base(void) { return lds(G_drv_text_fg); }
 #define DRVB(x) DSB((u16)(drv_base() + (x)))
@@ -43,7 +44,8 @@ static inline u8 *vmem(u16 seg, u16 ofs, int plane)
     if ((u16)(seg - 0xA000) >= 0x1000 || a >= 0x10000u) return NULL;
     return vga_vram() + a * 4u + (u32)plane;
 }
-static inline void vput(u16 seg, u16 ofs, int plane, u8 v) { u8 *p = vmem(seg, ofs, plane); if (p) *p = v; }
+/* ENH: every driver write tags the pixel with its writer (enhanced/enhanced.h; no-op with --classic) */
+static inline void vput(u16 seg, u16 ofs, int plane, u8 v) { u8 *p = vmem(seg, ofs, plane); if (p) { *p = v; enh_tag(p); } }
 static inline u8 vget(u16 seg, u16 ofs, int plane) { u8 *p = vmem(seg, ofs, plane); return p ? *p : 0; }
 /* Pixel x of the row whose planar offset is `row` (x may be negative: planar byte (x >> 2) signed). */
 static inline void vpx_put(u16 seg, u16 row, s16 x, u8 v) { vput(seg, (u16)(row + (x >> 2)), x & 3, v); }

@@ -85,9 +85,10 @@ CodeFn codeptr_lookup(FarPtr p)
 {
     if (far_is_null(p)) return NULL;
     CodeFn f = find(p);
-    if (!f)
-        host_fatal("%s: call through unregistered code pointer %04X:%04X (file %04X:%04X)",
-                   prog_layout ? prog_layout->exe : "?", p.seg, p.off, (u16)(p.seg - LOAD_SEG), p.off);
+    if (!f)   /* ENH (diagnostic): the C caller, as an offset from codeptr_lookup (map it with nm) */
+        host_fatal("%s: call through unregistered code pointer %04X:%04X (file %04X:%04X), caller codeptr_lookup%+ld",
+                   prog_layout ? prog_layout->exe : "?", p.seg, p.off, (u16)(p.seg - LOAD_SEG), p.off,
+                   (long)((const char *)__builtin_return_address(0) - (const char *)(void *)codeptr_lookup));
     return f;
 }
 

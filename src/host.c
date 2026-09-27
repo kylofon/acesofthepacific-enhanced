@@ -26,12 +26,13 @@ static void (*focus_lost_handler)(void);
 static void (*mouse_handler)(int, int, u8);
 static void (*sound_service)(void);
 static bool (*frame_source)(u32 *);
-static u32 frame[HOST_FRAME_MAX_W * HOST_FRAME_MAX_H];
+static u32 *frame;                     /* ENH: allocated for the frame source's size */
 static int frame_w = 320, frame_h = 200;
+static int scr_x0, scr_y0, scr_w = 320, scr_h = 200;   /* ENH: the 320x200 screen inside the frame (mouse) */
 
 /* Logical presentation: frame width x 3/4 of it (4:3, as on a VGA monitor) or square pixels. */
 static int view_w(void) { return frame_w; }
-static int view_h(void) { return aspect43 ? frame_w * 3 / 4 : frame_h; }
+static int view_h(void) { return aspect43 ? frame_h * 6 / 5 : frame_h; }   /* ENH: 200 lines -> 240 */
 
 /* Tick clock: tick n is due at start + n * 5041 / 1193182 s (exact rational arithmetic). */
 static Uint64 clock_start_ns;
@@ -131,6 +132,8 @@ void host_shutdown(void)
     window = NULL;
     if (audio_mutex) SDL_DestroyMutex(audio_mutex);
     audio_mutex = NULL;
+    SDL_free(frame);                                     /* ENH */
+    frame = NULL;
     SDL_free(game_dir);
     game_dir = NULL;
     SDL_Quit();
@@ -144,12 +147,32 @@ void host_set_mouse_handler(void (*handler)(int, int, u8)) { mouse_handler = han
 void host_set_frame_source(bool (*compose)(u32 *), int w, int h)
 {
     frame_source = compose;
+    int old_vw = view_w(), old_vh = view_h();
     frame_w = SDL_clamp(w, 1, HOST_FRAME_MAX_W);
     frame_h = SDL_clamp(h, 1, HOST_FRAME_MAX_H);
+    scr_x0 = scr_y0 = 0; scr_w = frame_w; scr_h = frame_h;
+    SDL_free(frame);                                     /* ENH: any size up to HOST_FRAME_MAX */
+    frame = SDL_calloc((size_t)frame_w * frame_h, sizeof(u32));
+    if (!frame) host_fatal("out of memory (frame %dx%d)", frame_w, frame_h);
     SDL_SetRenderLogicalPresentation(renderer, view_w(), view_h(), SDL_LOGICAL_PRESENTATION_LETTERBOX);
     if (texture) SDL_DestroyTexture(texture);
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_XRGB8888, SDL_TEXTUREACCESS_STREAMING, frame_w, frame_h);
-    SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
+    /* ENH: a high-resolution frame is filtered to the window */
+    SDL_SetTextureScaleMode(texture, frame_h > 200 ? SDL_SCALEMODE_LINEAR : SDL_SCALEMODE_NEAREST);
+    /* ENH: a wider picture (widescreen) widens the window at the same height */
+    if (window && !headless && !(SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) &&
+        (long)view_w() * old_vh != (long)old_vw * view_h()) {
+        int ww, wh;
+        SDL_GetWindowSize(window, &ww, &wh);
+        SDL_SetWindowSize(window, wh * view_w() / view_h(), wh);
+    }
+}
+
+void host_set_screen_rect(int x0, int y0, int w, int h)
+{
+    scr_x0 = x0; scr_y0 = y0;
+    scr_w = w > 0 ? w : frame_w;
+    scr_h = h > 0 ? h : frame_h;
 }
 
 uint64_t host_ns(void) { return SDL_GetTicksNS() - clock_start_ns; }
@@ -277,12 +300,45 @@ static void scripted_keys(void)
     spec = *p == ',' ? p + 1 : NULL;
 }
 
+/* ---------------------------------------------------------------- scripted clicks (AOTP_CLICKS) */
+
+/* ENH (developer aid): "<seconds>:<x>:<y>,..." moves the pointer to (x, y) of the 320x200 screen and
+ * clicks the left button (held 0.2 s). */
+static void scripted_clicks(void)
+{
+    static const char *spec;
+    static bool checked;
+    static double release_at = -1;
+    if (!checked) { spec = SDL_getenv("AOTP_CLICKS"); checked = true; }
+    double now = (double)(SDL_GetTicksNS() - clock_start_ns) / 1e9;
+    if (release_at >= 0 && now >= release_at) {
+        mouse_buttons &= (u8)~1;
+        mouse_changed = true;
+        release_at = -1;
+    }
+    if (!spec || !*spec || release_at >= 0) return;
+    char *end;
+    double at = SDL_strtod(spec, &end);
+    if (end == spec || *end != ':') { spec = NULL; return; }
+    if (now < at) return;
+    long x = SDL_strtol(end + 1, &end, 10);
+    if (*end != ':') { spec = NULL; return; }
+    long y = SDL_strtol(end + 1, &end, 10);
+    host_mouse_warp((int)x, (int)y);
+    mouse_buttons |= 1;
+    mouse_changed = true;
+    release_at = now + 0.2;
+    if (host_trace()) fprintf(stderr, "[host] scripted click %ld,%ld at %.2f s\n", x, y, at);
+    spec = *end == ',' ? end + 1 : NULL;
+}
+
 /* ---------------------------------------------------------------- pump */
 
 void host_pump(void)
 {
     process_events();
     scripted_keys();
+    scripted_clicks();                              /* ENH: developer aid */
     if (mouse_changed && mouse_handler) {
         mouse_changed = false;
         int x, y;
@@ -479,17 +535,19 @@ static void process_events(void)
 
 void host_mouse_read(int *x, int *y, u8 *buttons)
 {
-    float px = SDL_clamp(mouse_x, 0.0f, (float)view_w() - 1);
-    float py = SDL_clamp(mouse_y, 0.0f, (float)view_h() - 1);
-    if (x) *x = (int)(px * frame_w / view_w());
-    if (y) *y = (int)(py * frame_h / view_h());
+    /* ENH: window-logical units -> frame pixels -> the 320x200 screen inside the frame */
+    float fx = SDL_clamp(mouse_x, 0.0f, (float)view_w() - 1) * frame_w / view_w();
+    float fy = SDL_clamp(mouse_y, 0.0f, (float)view_h() - 1) * frame_h / view_h();
+    int sx = (int)((fx - scr_x0) * 320 / scr_w), sy = (int)((fy - scr_y0) * 200 / scr_h);
+    if (x) *x = SDL_clamp(sx, 0, 319);
+    if (y) *y = SDL_clamp(sy, 0, 199);
     if (buttons) *buttons = mouse_buttons;
 }
 
 void host_mouse_warp(int x, int y)
 {
-    mouse_x = (float)x * view_w() / frame_w;
-    mouse_y = (float)y * view_h() / frame_h;
+    mouse_x = ((float)x * scr_w / 320 + scr_x0) * view_w() / frame_w;   /* ENH: screen rect */
+    mouse_y = ((float)y * scr_h / 200 + scr_y0) * view_h() / frame_h;
     if (window && !headless) {
         float wx, wy;
         if (SDL_RenderCoordinatesToWindow(renderer, mouse_x, mouse_y, &wx, &wy))
@@ -522,6 +580,86 @@ u8 host_joy_buttons(void)
     if (SDL_GetGamepadButton(gamepad, SDL_GAMEPAD_BUTTON_WEST))  b |= 4;
     if (SDL_GetGamepadButton(gamepad, SDL_GAMEPAD_BUTTON_NORTH)) b |= 8;
     return b;
+}
+
+/* ---------------------------------------------------------------- ENH: parallel loops */
+
+#define PAR_MAX_WORKERS 15
+static SDL_Thread *par_thread[PAR_MAX_WORKERS];
+static int par_workers = -1;
+static SDL_Mutex *par_mutex;
+static SDL_Condition *par_go, *par_done;
+static u32 par_gen;                              /* job generation, under par_mutex */
+static int par_busy;                             /* workers still inside the current job */
+static SDL_AtomicInt par_next;
+static int par_n;
+static void (*par_fn)(int, void *);
+static void *par_ctx;
+
+int host_cpu_count(void)
+{
+    int n = SDL_GetNumLogicalCPUCores();
+    return n < 1 ? 1 : n;
+}
+
+static void par_run(void)
+{
+    for (;;) {
+        int i = SDL_AddAtomicInt(&par_next, 1);
+        if (i >= par_n) return;
+        par_fn(i, par_ctx);
+    }
+}
+
+static int SDLCALL par_worker(void *arg)
+{
+    (void)arg;
+    u32 seen = 0;
+    for (;;) {
+        SDL_LockMutex(par_mutex);
+        while (par_gen == seen) SDL_WaitCondition(par_go, par_mutex);
+        seen = par_gen;
+        SDL_UnlockMutex(par_mutex);
+        par_run();
+        SDL_LockMutex(par_mutex);
+        if (--par_busy == 0) SDL_SignalCondition(par_done);
+        SDL_UnlockMutex(par_mutex);
+    }
+    return 0;
+}
+
+void host_parallel(int n, void (*fn)(int i, void *ctx), void *ctx)
+{
+    if (par_workers < 0) {
+        par_workers = 0;
+        int w = host_cpu_count() - 1;
+        if (w > PAR_MAX_WORKERS) w = PAR_MAX_WORKERS;
+        par_mutex = SDL_CreateMutex();
+        par_go = SDL_CreateCondition();
+        par_done = SDL_CreateCondition();
+        if (par_mutex && par_go && par_done)
+            for (int i = 0; i < w; i++) {
+                par_thread[i] = SDL_CreateThread(par_worker, "enh-render", NULL);
+                if (!par_thread[i]) break;
+                SDL_DetachThread(par_thread[i]);
+                par_workers++;
+            }
+    }
+    if (par_workers == 0 || n <= 1) {
+        for (int i = 0; i < n; i++) fn(i, ctx);
+        return;
+    }
+    par_fn = fn; par_ctx = ctx; par_n = n;
+    SDL_SetAtomicInt(&par_next, 0);
+    SDL_LockMutex(par_mutex);
+    par_busy = par_workers;
+    par_gen++;
+    SDL_BroadcastCondition(par_go);
+    SDL_UnlockMutex(par_mutex);
+    par_run();
+    SDL_LockMutex(par_mutex);
+    while (par_busy > 0) SDL_WaitCondition(par_done, par_mutex);
+    SDL_UnlockMutex(par_mutex);
 }
 
 /* ---------------------------------------------------------------- audio */

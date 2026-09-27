@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "host.h"
+#include "enhanced/enhanced.h"   /* ENH */
 
 static u8 vram[VGA_VRAM_SIZE];
 static u8 dac[256][3];
@@ -38,11 +39,13 @@ static u32 pal32(u8 i)
 static bool compose(u32 *xrgb)
 {
     static u32 out[320 * 200];
+    static u8 otag[320 * 200];                               /* ENH: the pixels' tags */
+    u32 pal[256];
+    for (int i = 0; i < 256; i++) pal[i] = pal32((u8)i);
+    if (enh_vtag) memset(otag, ENH_TAG_2D, sizeof otag);
     if (mode != 0x13) {
         memset(out, 0, sizeof out);                          /* text mode: not modelled, black */
     } else {
-        u32 pal[256];
-        for (int i = 0; i < 256; i++) pal[i] = pal32((u8)i);
         u16 start = (u16)(crtc[0x0C] << 8 | crtc[0x0D]);
         u16 pitch = (u16)(crtc[0x13] * 2);                   /* byte mode: offset register x 2 */
         int pan = (attr[0x13] & 7) >> 1;                     /* 256-colour mode: 2 pel units per pixel */
@@ -53,12 +56,18 @@ static bool compose(u32 *xrgb)
                 int c = x + pan;
                 u16 a = (u16)(row + (c >> 2));
                 o[x] = pal[vram[(u32)a * 4 + (c & 3)]];
+                if (enh_vtag) otag[y * 320 + x] = enh_vtag[(u32)a * 4 + (c & 3)];   /* ENH */
             }
         }
     }
-    if (!dirty && memcmp(out, last_frame, sizeof out) == 0) return false;
-    dirty = false;
-    memcpy(last_frame, out, sizeof out);
+    bool changed = dirty || memcmp(out, last_frame, sizeof out) != 0;
+    if (changed) {
+        dirty = false;
+        memcpy(last_frame, out, sizeof out);
+    }
+    /* ENH: the enhanced view under the scaled picture */
+    if (enh_enabled()) return enh_compose(out, otag, pal, mode == 0x13 ? vga_shown_seg() : 0, changed, xrgb);
+    if (!changed) return false;
     memcpy(xrgb, out, sizeof out);
     return true;
 }
@@ -73,7 +82,11 @@ void vga_init(void)
     memset(attr, 0, sizeof attr);
     attr_flipflop = false;
     dirty = true;
-    host_set_frame_source(compose, 320, 200);
+    int w, h, x0, sw;                                      /* ENH: output size (320x200 with --classic) */
+    enh_frame_size(&w, &h, &x0, &sw);
+    host_set_frame_source(compose, w, h);
+    host_set_screen_rect(x0, 0, sw, h);
+    enh_vram_cleared();
 }
 
 u8 *vga_vram(void) { return vram; }
@@ -101,6 +114,7 @@ void vga_set_mode(u8 m)
     if (m == 0x13) {
         memset(vram, 0, 0x10000);                          /* BIOS clears the chained 64000 bytes */
         for (int i = 0; i < 256; i++) dac[i][0] = dac[i][1] = dac[i][2] = 0;   /* PORT: default palette not modelled */
+        enh_vram_cleared();                                /* ENH: tags */
     }
     dirty = true;
 }
@@ -110,6 +124,7 @@ void vga_set_unchained(void)
     seq[4] = (u8)((seq[4] & ~0x08) | 0x04);
     gc[6] &= (u8)~0x02;
     memset(vram, 0, sizeof vram);                          /* SC[02] = 0Fh; clear A000:0000..FFFF */
+    enh_vram_cleared();                                    /* ENH: tags */
     crtc[0x14] &= (u8)~0x40;
     crtc[0x17] |= 0x40;
     gc[5] = 0x40; gc[1] = 0; gc[8] = 0xFF;

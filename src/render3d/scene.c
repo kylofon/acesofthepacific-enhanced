@@ -10,6 +10,7 @@
 #include "codeptr.h"
 #include "sim_world/sim_world.h"
 #include "sim_flow/sim_flow.h"
+#include "enhanced/enhanced.h"    /* ENH: 3D frame capture */
 
 enum {
     S_CAMERA = 0x437E,            /* near: camera record of the 3D view */
@@ -168,7 +169,7 @@ u8 scene_add_dynamic(FarPtr o)
     u16 m = stk_mark(), p = stk_alloc(12);
     memcpy(DSP(p), far_mp(far_add(o, 4)), 12);
     u32 d = ldist3(eye_ofs(), p);
-    u8 vis = class_visible(o, d, p, 0);                    /* no big-range minimum here */
+    u8 vis = class_visible(o, enh_dist(d), p, 0);          /* ENH: longer ranges in the enhanced pass */                    /* no big-range minimum here */
     stk_release(m);
     if (!vis) return 0;
     u8 l = (u8)shape_layer_cached((u16)(rd16(o.seg, (u16)(o.off + 2)) & 0x1FFF));
@@ -186,7 +187,7 @@ u8 static_test_add_body(void)
     u16 m = stk_mark(), p = stk_alloc(12);
     memcpy(DSP(p), far_mp(far_add(o, 4)), 12);
     u32 d = ldist3(eye_ofs(), p);
-    u8 vis = class_visible(o, d, p, 1);
+    u8 vis = class_visible(o, enh_dist(d), p, 1);          /* ENH: longer ranges in the enhanced pass */
     stk_release(m);
     if (vis) {
         u8 l = (u8)shape_layer_cached((u16)(rd16(o.seg, (u16)(o.off + 2)) & 0x1FFF));
@@ -226,7 +227,8 @@ void scene_gather_static(u8 keep)
     u16 mk = stk_mark(), E = stk_alloc(12);
     memcpy(DSP(E), DSP(eye_ofs()), 12);
     FarPtr list = ds_far(W_DRAW_LIST);
-    if (DSW(W_GATHER_FORCE) == 0 && (keep || !scene_eye_moved(DSW(W_SCENE_VIEW)))) {
+    /* ENH: the enhanced pass always gathers anew (its list is not kept) */
+    if (DSW(W_GATHER_FORCE) == 0 && !enh_pass && (keep || !scene_eye_moved(DSW(W_SCENE_VIEW)))) {
         /* refresh path: new keys for the static entries; last frame's moving objects are dropped */
         ds_far_wr(W_LIST_BACK, far_add(list, (u16)(DSW(W_LIST_GROUND_N) << 3)));
         for (s16 i = 0; i < (s16)DSW(W_LIST_STATIC_N); i++) {
@@ -253,25 +255,25 @@ void scene_gather_static(u8 keep)
 
     while (i < (s16)DSW(S_P_STATIC_END)) {
         FarPtr o = NEXT_OBJ();
-        if (lnear_obj(E, o, 2000000)) static_test_add();
+        if (lnear_obj(E, o, enh_range(2000000))) static_test_add();        /* ENH: range */
         if ((s16)DSW(W_LIST_N) >= lim) goto done;
     }
     while (i < (s16)DSW(S_P_BIG_END)) {
         FarPtr o = NEXT_OBJ();
         u32 r = (u32)shape_radius_world((s16)(rd16(o.seg, (u16)(o.off + 2)) & 0x1FFF)) + 4000000;
-        if (lnear_obj(E, o, r)) static_test_add();
+        if (lnear_obj(E, o, enh_range(r))) static_test_add();              /* ENH: range */
         if ((s16)DSW(W_LIST_N) >= lim) goto done;
     }
     while (i < (s16)DSW(S_P_REST_END)) {
         FarPtr o = NEXT_OBJ();
-        if (lnear_obj(E, o, 2000000)) static_test_add();
+        if (lnear_obj(E, o, enh_range(2000000))) static_test_add();        /* ENH: range */
         if ((s16)DSW(W_LIST_N) >= lim) goto done;
     }
     while (i < (s16)DSW(S_P_SHORT_END)) {                  /* short macro groups */
         FarPtr g = NEXT_OBJ();
         u32 d = dist_obj(E, g);
-        if (d > 1300000) continue;
-        if (!group_big_enough(g, d, S)) continue;
+        if (enh_dist(d) > 1300000) continue;                                /* ENH: range */
+        if (!group_big_enough(g, enh_dist(d), S)) continue;
         u16 flags = (u16)(0x1800 | (rd16(g.seg, g.off) & 0xFF));
         s16 n = (s16)macro_expand(g);
         FarPtr src = far_make(SEG(0x3B05), 0);
@@ -300,7 +302,7 @@ void scene_gather_static(u8 keep)
                 wr16(a.seg, a.off, flags);
             }
             ds_far_wr(W_GATHER_OBJ, a);
-            if (lnear_obj(E, a, 1300000) && static_test_add()) {
+            if (lnear_obj(E, a, enh_range(1300000)) && static_test_add()) {    /* ENH: range */
                 if ((s16)DSW(W_LIST_N) >= lim) goto done;
             } else if (layer == 0) arena_free30();
             else arena_free40();
@@ -309,8 +311,8 @@ void scene_gather_static(u8 keep)
     while (i < (s16)DSW(W_WORLD_N)) {                      /* long (tiled) groups */
         FarPtr g = NEXT_OBJ();
         u32 d = dist_obj(E, g);
-        if (d > 2000000) continue;
-        if (!group_big_enough(g, d, S)) continue;
+        if (enh_dist(d) > 2000000) continue;                                /* ENH: range */
+        if (!group_big_enough(g, enh_dist(d), S)) continue;
         u8 *gp = far_mp(g);
         FarPtr M = far_add(ds_far(W_MACRO_TAB), (u16)((g16(gp, 2) & 0x3FFF) * 0x12));
         s32 Bx = gs32(gp, 4), By = gs32(gp, 8), Xx = gs32(gp, 0x1C), Xy = gs32(gp, 0x20);
@@ -339,7 +341,7 @@ void scene_gather_static(u8 keep)
                     wr32(a.seg, (u16)(a.off + 8), (u32)qy);
                     wr32(a.seg, (u16)(a.off + 0x0C), (u32)qz);
                     ds_far_wr(W_GATHER_OBJ, a);
-                    if (lnear_obj(E, a, 2000000) && static_test_add()) {
+                    if (lnear_obj(E, a, enh_range(2000000)) && static_test_add()) {   /* ENH */
                         if ((s16)DSW(W_LIST_N) >= lim) goto done;
                     } else arena_free40();
                 }
@@ -512,12 +514,18 @@ s16 sort_compare(const R3dCmp *c)
 /* AP 5440:0269 — the DS:36CC callback */
 void draw_object(FarPtr o)
 {
+    enh_object(far_lin(o));                                /* ENH: what follows belongs to this object */
     u16 f = rd16(o.seg, o.off), t = (u16)(f & 0x1F);
     u16 cnt = DSW(S_DRAW_COUNT); DSW(S_DRAW_COUNT)++;
-    if (!(cnt & 1)) vcr_poll_panel();
+    if (!(cnt & 1) && !enh_pass) vcr_poll_panel();         /* ENH: no input in the enhanced pass */
     if (t == 0x0F) parachute_draw(o);                      /* then continues below */
     if (t == 0x0E) { effect_draw(o); return; }
-    if (t == 0x12) { far_dot_draw(o); return; }
+    if (t == 0x12) {
+        enh_far_dot(true);                                 /* ENH: the model is drawn by the enhanced pass */
+        far_dot_draw(o);
+        enh_far_dot(false);                                /* ENH */
+        return;
+    }
     if (rd16(o.seg, o.off) & 0x2000) return;
     if (t == 5) { ordnance_draw(o); return; }
     u16 mk = stk_mark(), tmp = stk_alloc(2);               /* the stack byte of the state */
@@ -548,7 +556,16 @@ u32 dist_limit(u16 v)
 }
 
 /* AP 5440:03aa (render3d_world.md §2.2) */
+static void render_scene_body(void);
 void render_scene(void)
+{
+    render_scene_body();
+    if (enh_pass_begin()) {                                /* ENH: the enhanced pass (Stage 2), no trace */
+        render_scene_body();
+        enh_pass_end();
+    }
+}
+static void render_scene_body(void)
 {
     u16 cam = DSW(S_CAMERA);
     limit_window(cam);
@@ -565,6 +582,7 @@ void render_scene(void)
     CSB(CS_FORCE_CLIP) = (u8)(CSB(CS_FORCE_CLIP) + (fullscreen_view() == 0));
     FarPtr sky = ds_far(S_SKY);
     u32 cel = DSB(S_NO_CELESTIAL) ? 0 : u32_fp(codeptr_far(0x3E1D002Au));   /* stub of 6964:01a2 */
+    enh_scene_begin();                                     /* ENH: camera, window: a new 3D frame */
     draw_sky(sky.off, sky.seg, CSW(CS_CAM_ANG), CSW(CS_CAM_ANG + 2), cel);
     u16 pl = DSW(S_PLAYER);
     if (!(DSB(pl + 0x1A) & 1)) {
@@ -584,7 +602,7 @@ void render_scene(void)
     }
     u16 eye = (u16)camera_obj_ref();
     range_cull();
-    clouds_draw(eye);
+    if (!enh_pass) clouds_draw(eye);                       /* ENH: bitmaps are not re-drawn by the host */
     spawn_ground_fires();
     u16 spot = sun_dir();
     s16 k = 0;
@@ -595,9 +613,9 @@ void render_scene(void)
         u32 d = ldist3(eye, (u16)(o + 4));
         if (DSB(o + 0x18) == 0 && !(DSW(o) & 0x100)) {     /* aircraft */
             s32 R = (s32)(s16)shape_radius_cached(DSW(o + 2)) << 7;
-            if (!((u32)(R << 1) > d)) continue;            /* not drawn at all */
+            if (!((u32)(R << 1) > enh_dist(d))) continue;  /* not drawn at all (ENH: range) */
             if ((s8)DSB(S_SPOT_ON) && ap_sun_glare_583c((u16)(o + 4), eye, d, spot, DSW(S_PLAYER))) continue;
-            if (d < (u32)R) list_add(ds_ptr(o), d);
+            if (d < (u32)R || enh_pass) list_add(ds_ptr(o), d);   /* ENH: the model, not the dot */
             else {                                         /* one-pixel dot proxy (no bound check) */
                 u16 p = (u16)(DSW(S_PROXIES) + 18 * k++);
                 DSW(p) = 0x8012;
@@ -606,7 +624,7 @@ void render_scene(void)
                 DSW(p + 0x10) = DSW(DSW(DSW(S_TYPES) + 2 * DSB(S_SIDE_OF + DSB(o + 0x19))) + 0x81);
                 list_add(ds_ptr(p), d);
             }
-        } else if (DSB(o + 0x18) == 1) { if (d < 250000) list_add(ds_ptr(o), d); }   /* ship */
+        } else if (DSB(o + 0x18) == 1) { if (enh_dist(d) < 250000) list_add(ds_ptr(o), d); }   /* ship (ENH) */
         else list_add(ds_ptr(o), d);
     }
     s16 own = view_get() == 2 || view_get() == 3;
@@ -620,6 +638,7 @@ void render_scene(void)
         scene_add_dynamic(e);
     scene_draw();
     CSB(CS_FORCE_CLIP) = (u8)(CSB(CS_FORCE_CLIP) - (fullscreen_view() == 0));
+    enh_scene_end();                                       /* ENH: the 3D frame is complete */
 }
 
 /* callbacks stored in DS:36CC / DS:36D0 and passed to draw_sky (through their VROOMM stubs) */

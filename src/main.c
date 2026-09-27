@@ -11,6 +11,13 @@
  *   --start        first program as a GCD exit code (default 1 = INTRO, as GCD.COM)
  *   --*-args       words put in front of the " -n<dir>\" tail of that program (e.g. --ap-args nlkle,
  *                  --intro-args -pi, --ps-args override)
+ *   --classic      ENH: every enhancement off: the faithful port's picture and behaviour
+ *   --res-scale    ENH: output resolution, 320x200 times N (default 4, 1..8)
+ *   --aa           ENH: anti-aliasing of the 3D view, N x N samples per output pixel (default 2, 1..4)
+ *   --widescreen   ENH: 16:9 picture; the 3D view reaches the sides when it fills the screen
+ *   --view-dist    ENH: view ranges of the enhanced 3D view x N (default 3, 1..8; 1 = the original's)
+ *   --no-lod-enh   ENH: keep the original's LOD choice (default: the finest model at every distance)
+ *   --no-haze-enh  ENH: no distance haze, banded sky and hard horizon as the original
  *   --check        load and verify the three executables (AP flattened), print a summary and exit;
  *                  with a path, also compare the flattened AP with that file (work/AP_flat.exe)
  * AOTP_TEST (developer aids): "dro" (sound, no program is loaded) runs here; the tests that need a
@@ -25,6 +32,7 @@
 #include <string.h>
 
 #include "ems.h"
+#include "enhanced/enhanced.h"
 #include "host.h"
 #include "mem.h"
 #include "platform/platform.h"
@@ -41,7 +49,9 @@ static int usage(const char *prog)
 {
     fprintf(stderr,
             "usage: %s [--game-dir DIR] [--scale N] [--fullscreen] [--aspect 4:3|1:1] [--frame-ticks N]\n"
-            "          [--start 1|2|3] [--intro-args S] [--ps-args S] [--ap-args S] [--check [AP_FLAT]]\n", prog);
+            "          [--start 1|2|3] [--intro-args S] [--ps-args S] [--ap-args S] [--check [AP_FLAT]]\n"
+            "          [--classic] [--res-scale N] [--aa N] [--widescreen] [--view-dist N]\n"
+            "          [--no-lod-enh] [--no-haze-enh]\n", prog);
     return 2;
 }
 
@@ -52,6 +62,10 @@ int main(int argc, char **argv)
     const char *prog_args[4] = { NULL, "", "", "" };
     int scale = 3, start = PROG_INTRO;
     bool check = false, fullscreen = false, aspect43 = true;
+    bool classic = false, widescreen = false;                  /* ENH */
+    int res_scale = ENH_DEFAULT_RES_SCALE, aa = ENH_DEFAULT_AA;
+    int view_dist = ENH_DEFAULT_VIEW_DIST;
+    bool lod_enh = true, haze_enh = true;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
         if (!strcmp(a, "--game-dir") && v) { dir = v; i++; }
@@ -68,6 +82,13 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--intro-args") && v) { prog_args[PROG_INTRO] = v; i++; }
         else if (!strcmp(a, "--ps-args") && v) { prog_args[PROG_PS] = v; i++; }
         else if (!strcmp(a, "--ap-args") && v) { prog_args[PROG_AP] = v; i++; }
+        else if (!strcmp(a, "--classic")) classic = true;                                  /* ENH */
+        else if (!strcmp(a, "--res-scale") && v) { res_scale = atoi(v); i++; }
+        else if (!strcmp(a, "--aa") && v) { aa = atoi(v); i++; }
+        else if (!strcmp(a, "--widescreen")) widescreen = true;
+        else if (!strcmp(a, "--view-dist") && v) { view_dist = atoi(v); i++; }
+        else if (!strcmp(a, "--no-lod-enh")) lod_enh = false;
+        else if (!strcmp(a, "--no-haze-enh")) haze_enh = false;
         else if (!strcmp(a, "--check")) {
             check = true;
             if (v && v[0] != '-') { flat_ref = v; i++; }
@@ -93,6 +114,8 @@ int main(int argc, char **argv)
     if (!host_init(dir, scale, fullscreen, aspect43)) return 1;
     mem_init_machine();       /* IVT, BIOS data area */
     ems_init();               /* EMM device header, INT 67h */
+    enh_init(!classic, res_scale, aa, widescreen);   /* ENH: before the frame source is installed */
+    enh_init_stage2(view_dist, lod_enh, haze_enh);   /* ENH: Stage 2 (all off with --classic) */
     vga_init();               /* frame source, text mode */
     platform_init();          /* host tick / keyboard / mouse -> platform */
 
