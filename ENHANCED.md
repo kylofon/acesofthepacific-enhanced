@@ -1,6 +1,6 @@
 # Aces of the Pacific Enhanced — plan
 
-Built on the faithful port (`../AcesOverPacific`, `aotpport/` at its v0.1.0 state, commit ff88596). The
+Built on the faithful port (`../AcesOfThePacific`, `aotpport/` at its v0.1.0 state, commit ff88596). The
 faithful engine runs unchanged (see `ENGINE.md` for its rules); enhancements live in `src/enhanced/` and hook
 into the engine at marked `ENH:` points, as in TestDrive3Enhanced. `--classic` turns every enhancement off.
 
@@ -63,7 +63,7 @@ resolution, instead of scaling the 320×200 picture.
   `sim_flow/cockpit.c` (`bmp_free_ems(DSW(0x11F0))`). Verified headless in `--classic` and enhanced:
   Training Mission (US Navy) Esc → END MISSION → END MISSION → debrief → main menu; Scramble Esc → END
   MISSION → END MISSION → debrief → main menu; DEMOAG film plays without a fatal; `--check` passes. The
-  same fix belongs upstream in `../AcesOverPacific` (`aotpport/src/sim_flow/cockpit.c` `lso_free`).
+  same fix belongs upstream in `../AcesOfThePacific` (`aotpport/src/sim_flow/cockpit.c` `lso_free`).
 
 ## Stage 1 design
 
