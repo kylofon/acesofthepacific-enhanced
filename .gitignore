@@ -1,0 +1,10 @@
+# Original game files (not redistributable)
+/Game/
+
+# Build output and copied binaries
+build*/
+/release/
+*.exe
+*.dll
+*.log
+__pycache__/
