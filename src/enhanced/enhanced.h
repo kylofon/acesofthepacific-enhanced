@@ -54,6 +54,10 @@ void enh_sky_end(void);
 void enh_sky_callback(bool inside);    /* horizon.c call_cb: sun, moon, stars are not re-drawn */
 void enh_object(u32 key);              /* scene.c draw_object: identity of the object drawn (0 = none) */
 void enh_ts_object(u16 eye_shift);     /* ts_draw.c: an instance is set up; eye coordinates are >> eye_shift */
+/* weapons.c bullet_draw around its ts_draw: the tracer is drawn at the bullet's old position, back =
+ * old - new (one sim step, world units). The host places it on that line at the view time instead of
+ * matching it with the frame before (a new bullet has none, and a bullet flies straight). */
+void enh_tracer(bool on, s16 back_x, s16 back_y, s16 back_z);
 /* r3d_poly.c / r3d_clip.c part routines: enh_poly = a polygon's vertex list (CS:0A51) with its eye
  * coordinates and colours is complete (before the near-plane clip, which rewrites the list); wide =
  * 32-bit eye coordinates. enh_poly_fill = the polygon goes to the fill: it is recorded and the fill's

@@ -465,8 +465,14 @@ static void render(const ESnap *n, const ESnap *p, double x, int W, int H, doubl
     }
     for (u32 k = 0; k < n->nobj; k++) {
         const EObj *o = &n->obj[k];
-        const EObj *q = p && x < 1.0 ? match(p, o) : NULL;
         xf[k] = base;
+        if (o->tracer) {                                  /* back along its own straight step, turn kept */
+            double w = p ? 1.0 - x : 0.0;
+            double t[3] = { o->back[0] * w + off[0], o->back[1] * w + off[1], o->back[2] * w + off[2] };
+            vec_mat(t, Mt, xf[k].b);
+            continue;
+        }
+        const EObj *q = p && x < 1.0 ? match(p, o) : NULL;
         if (!q || dist3(o->pos, q->pos) > ENH_JUMP) continue;
         double Q[3];
         for (int i = 0; i < 3; i++) Q[i] = q->pos[i] + (o->pos[i] - q->pos[i]) * x;
@@ -502,8 +508,11 @@ static void render(const ESnap *n, const ESnap *p, double x, int W, int H, doubl
             vec_mat(dv, t->A, e[i]);
             for (int a = 0; a < 3; a++) e[i][a] += t->b[a];
         }
-        int q = m >= 2 ? near_clip(e, m, n->near_d, c) : 0;
-        if (m == 1 && e[0][1] >= n->near_d) { memcpy(c[0], e[0], sizeof c[0]); q = 1; }
+        /* bullet_draw: set_near(n - 4), one step nearer than draw_object */
+        bool tracer = pl->obj >= 0 && (u32)pl->obj < n->nobj && n->obj[pl->obj].tracer;
+        double near_d = tracer ? n->near_d * 0.5 : n->near_d;
+        int q = m >= 2 ? near_clip(e, m, near_d, c) : 0;
+        if (m == 1 && e[0][1] >= near_d) { memcpy(c[0], e[0], sizeof c[0]); q = 1; }
         if (q == 0) continue;
         double fs = 0;
         for (int i = 0; i < q; i++) {

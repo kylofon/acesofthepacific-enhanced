@@ -13,6 +13,8 @@ typedef struct {
     u32 key;
     u16 ord;
     bool shadow;
+    bool tracer;                       /* enh_tracer: pos moves by back x (1 - view fraction), no match */
+    double back[3];
     double pos[3];
     double R[9];
 } EObj;

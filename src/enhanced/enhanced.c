@@ -38,6 +38,8 @@ static u32 cur_key;                    /* draw_object's object */
 static s32 cur_obj = -1;
 static double cur_eye_scale = 1.0;
 static double cur_R[9];
+static bool tr_on;                     /* enh_tracer */
+static double tr_back[3];
 
 /* the polygon announced by enh_poly, recorded by enh_poly_fill */
 #define PEND_MAX 64
@@ -294,6 +296,12 @@ void enh_object(u32 key)
     cur_obj = -1;
 }
 
+void enh_tracer(bool on, s16 bx, s16 by, s16 bz)
+{
+    tr_on = on;
+    tr_back[0] = bx; tr_back[1] = by; tr_back[2] = bz;
+}
+
 void enh_ts_object(u16 eye_shift)
 {
     if (!capturing()) return;
@@ -317,6 +325,8 @@ void enh_ts_object(u16 eye_shift)
     o->key = cur_key ^ (shadow ? 0x80000000u : 0);
     o->shadow = shadow;
     o->ord = 0;
+    o->tracer = tr_on;
+    memcpy(o->back, tr_back, sizeof o->back);
     for (u32 i = 0; i < cur->nobj; i++) if (cur->obj[i].key == o->key) o->ord++;
     for (int i = 0; i < 3; i++) o->pos[i] = cur->cam[i] + (double)KSL(CS_D_WORLD + 4 * i);
     memcpy(o->R, cur_R, sizeof o->R);

@@ -90,7 +90,9 @@ output pixel for the 3D view, default 2), `--widescreen` (426×200 original pixe
 one before it (p). `x = (now − time n was first shown) / (t_n − t_p)`, clamped to 1: the view runs one sim
 frame behind and only interpolates (the sim keeps its own step, `DS:711E` untouched). Camera position lerp,
 camera matrix lerp + Gram-Schmidt; objects matched by (key, occurrence) are carried and turned to their
-interpolated pose (shadows only carried); unmatched geometry is drawn as in frame n. No interpolation across
+interpolated pose (shadows only carried); unmatched geometry is drawn as in frame n. Tracers (`bullet_draw`, hook `enh_tracer`) are not matched: each is
+moved back along its own step (old − new) by 1 − x and drawn with its nearer near plane (focal/16), so a new
+bullet is placed right too and tracers keep their original relation to the (lagging) view. No interpolation across
 a window/projection change, a camera jump (> 30000 units or > ~45°) or a gap > 0.5 s. The horizon is drawn
 analytically from the interpolated camera (sea below the eye plane, bands `spacing` pixels apart
 perpendicular to the horizon, then sky+15). Polygons are near-clipped in eye space (focal/8), projected with
@@ -193,3 +195,10 @@ with `pal[t]` by a/255, resolved with the current DAC):
 * Developer aid: `AOTP_ENH_PROF=1` prints mean times (AP's scene, the pass, the copies, host render,
   resolve, composition) every 2 s.
 * If the EMS allocation changed during the pass (not seen), it cannot be undone; a warning is printed once.
+
+## Input
+
+* Direction keys (`platform/kbd.c kbd_dir_bits`): the original keeps one direction per key set (the last
+  key pressed), so e.g. Down held with Left does nothing until Left is released. Enhanced: every held key
+  of the set is combined (up 1, down 2, left 4, right 8; opposite keys cancel), which the flight input
+  already accepts as diagonals. `--classic` keeps the original behaviour.

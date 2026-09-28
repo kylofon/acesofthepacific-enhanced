@@ -8,6 +8,7 @@
 #include "sim_world/swa_priv.h"
 #include "codeptr.h"
 #include "prog.h"
+#include "enhanced/enhanced.h"   /* ENH: tracers placed at the view time */
 
 typedef void (*WpnUpdateFn)(FarPtr o);
 typedef u8   (*WpnDrawFn)(FarPtr o);
@@ -412,7 +413,9 @@ u8 bullet_draw(FarPtr b)
     DSSL(o + 0x0A) += FS(b, 0x20);
     set_near((u16)(get_near_n() - 4));
     SEGB(0x277A, 0x09B2)++;
+    enh_tracer(true, FS(b, 0x1C), FS(b, 0x1E), FS(b, 0x20));      /* ENH: the step back to the old position */
     ts_draw(o);
+    enh_tracer(false, 0, 0, 0);                                   /* ENH */
     SEGB(0x277A, 0x09B2)--;
     reset_near();
     stk_release(mk);

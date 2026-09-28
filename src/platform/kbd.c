@@ -7,6 +7,7 @@
 #include "platform/plat_priv.h"
 
 #include "host.h"
+#include "enhanced/enhanced.h"   /* ENH: held direction keys combined */
 #include "prog.h"
 #include "symbols_ap.h"
 #include "symbols_intro.h"
@@ -159,6 +160,21 @@ u16 key_queue_read(void)
 /* 05da:03da / 16e3:6687 / 1d32:095e */
 int kbd_dir_bits(int set)
 {
+    if (enh_enabled()) {
+        /* ENH: the original keeps one direction per set (the last key pressed), so a second key held
+         * with the first (Left + Down to pull through a turn) does nothing until the first is let go.
+         * Here every held key of the set counts: key state bits 7..4 = direction code, bit 3 = set,
+         * bit 0 = held; the table gives up 1, down 2, left 4, right 8. Opposite keys cancel. */
+        const u8 *ks = LP(G_key_state), *tab = LP(G_dir_bits_tab);
+        int bits = 0;
+        for (int sc = 0; sc < 0x59; sc++) {
+            u8 s = ks[sc];
+            if ((s & 0xF0) && (s & 1) && ((s >> 3) & 1) == (set != 0)) bits |= tab[s >> 4];
+        }
+        if ((bits & 3) == 3) bits &= ~3;
+        if ((bits & 12) == 12) bits &= ~12;
+        return bits;
+    }
     return LP(G_dir_bits_tab)[LP(G_kbd_dir)[set != 0]];
 }
 
