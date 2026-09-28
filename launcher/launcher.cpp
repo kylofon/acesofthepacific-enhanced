@@ -149,13 +149,45 @@ LauncherDialog::LauncherDialog()
     optionsBox->Add(sound_, 0, wxALL, gap);
     aspect_->Bind(wxEVT_CHOICE, [this](wxCommandEvent&) { FillScales(); });
 
-    // Notes
-    auto* notesBox = new wxStaticBoxSizer(wxVERTICAL, this, "In the game");
-    wxWindow* nb = notesBox->GetStaticBox();
-    notesBox->Add(GreyText(nb, "The keys, joystick and mouse work as in the original; see the game's manual\n"
-                               "and its key reference card. A connected gamepad acts as the joystick.\n"
-                               "Alt+Enter switches full screen."),
-                  0, wxALL, gap);
+    // Keys
+    auto* keysBox = new wxStaticBoxSizer(wxVERTICAL, this, "Keys in the game");
+    wxWindow* kb = keysBox->GetStaticBox();
+    auto* keys = new wxFlexGridSizer(2, small, FromDIP(16));
+    const char* const KEYS[][2] = {
+        {"Arrows / keypad", "stick (held keys combine, e.g. Left + Down)"},
+        {",  .", "rudder left, right"},
+        {"1 - 9  keypad *", "throttle settings, full throttle"},
+        {"-  =", "throttle down, up"},
+        {"Space", "guns"},
+        {"Backspace", "bombs / torpedo"},
+        {"R", "rockets"},
+        {"G", "select weapon station"},
+        {"F  L  B  W", "flaps, gear, dive brakes, wheel brakes"},
+        {"D  U", "drop tanks, unjam guns"},
+        {"A", "autopilot / skip ahead"},
+        {"S", "radio (then F1 - F7)"},
+        {"Ctrl+B", "bail out"},
+        {"", ""},
+        {"F1 - F6", "cockpit views; outside views after Enter"},
+        {"F7  F8", "chase view, weapon camera"},
+        {"Enter + arrows", "look around"},
+        {"[  ]", "zoom (outside views)"},
+        {"Ctrl / Alt+F1 - F10", "save / recall a view"},
+        {"", ""},
+        {"M", "map"},
+        {"P", "pause"},
+        {"F10  Alt+R", "preferences, realism"},
+        {"Esc", "end the mission"},
+        {"Alt+S  Alt+J  Alt+D", "sound, joystick, mouse on / off"},
+        {"Alt+Q", "quit"},
+        {"Alt+Enter", "full screen"},
+    };
+    for (const auto& k : KEYS) {
+        keys->Add(new wxStaticText(kb, wxID_ANY, k[0]));
+        keys->Add(GreyText(kb, k[1]));
+    }
+    keysBox->Add(keys, 0, wxALL, gap);
+    keysBox->Add(GreyText(kb, "A connected gamepad acts as the joystick."), 0, wxLEFT | wxRIGHT | wxBOTTOM, gap);
 
     // Buttons
     auto* buttons = new wxBoxSizer(wxHORIZONTAL);
@@ -172,10 +204,15 @@ LauncherDialog::LauncherDialog()
     play_->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { Play(); });
     close->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { Close(); });
 
+    // Two columns: the files and the options on the left, the keys on the right.
+    auto* left = new wxBoxSizer(wxVERTICAL);
+    left->Add(filesBox, 0, wxEXPAND);
+    left->Add(optionsBox, 1, wxEXPAND | wxTOP, margin);
+    auto* columns = new wxBoxSizer(wxHORIZONTAL);
+    columns->Add(left, 0, wxEXPAND);
+    columns->Add(keysBox, 0, wxEXPAND | wxLEFT, margin);
     auto* all = new wxBoxSizer(wxVERTICAL);
-    all->Add(filesBox, 0, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, margin);
-    all->Add(optionsBox, 0, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, margin);
-    all->Add(notesBox, 0, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, margin);
+    all->Add(columns, 0, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, margin);
     all->Add(buttons, 0, wxEXPAND | wxALL, margin);
     SetSizer(all);
 
