@@ -18,6 +18,9 @@
  *   --view-dist    ENH: view ranges of the enhanced 3D view x N (default 3, 1..8; 1 = the original's)
  *   --no-lod-enh   ENH: keep the original's LOD choice (default: the finest model at every distance)
  *   --no-haze-enh  ENH: no distance haze, banded sky and hard horizon as the original
+ *   --keys         ENH: key bindings, "name=code,..." for the actions not on their default keys (the
+ *                  launcher's Settings > Key Bindings; enhanced/enh_keys.c). With the enhancements on,
+ *                  F lowers the flaps a step and Shift+F raises them (the original's F cycles them)
  *   --check        load and verify the three executables (AP flattened), print a summary and exit;
  *                  with a path, also compare the flattened AP with that file (work/AP_flat.exe)
  * AOTP_TEST (developer aids): "dro" (sound, no program is loaded) runs here; the tests that need a
@@ -51,7 +54,7 @@ static int usage(const char *prog)
             "usage: %s [--game-dir DIR] [--scale N] [--fullscreen] [--aspect 4:3|1:1] [--frame-ticks N]\n"
             "          [--start 1|2|3] [--intro-args S] [--ps-args S] [--ap-args S] [--check [AP_FLAT]]\n"
             "          [--classic] [--res-scale N] [--aa N] [--widescreen] [--view-dist N]\n"
-            "          [--no-lod-enh] [--no-haze-enh]\n", prog);
+            "          [--no-lod-enh] [--no-haze-enh] [--keys NAME=CODE,...]\n", prog);
     return 2;
 }
 
@@ -89,6 +92,10 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--view-dist") && v) { view_dist = atoi(v); i++; }
         else if (!strcmp(a, "--no-lod-enh")) lod_enh = false;
         else if (!strcmp(a, "--no-haze-enh")) haze_enh = false;
+        else if (!strcmp(a, "--keys") && v) {
+            if (!enh_keys_parse(v)) { fprintf(stderr, "bad --keys list: %s\n", v); return usage(argv[0]); }
+            i++;
+        }
         else if (!strcmp(a, "--check")) {
             check = true;
             if (v && v[0] != '-') { flat_ref = v; i++; }

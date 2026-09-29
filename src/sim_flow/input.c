@@ -1,5 +1,6 @@
 /* sim_flow: control mapping (5f2c) and input polling (60a9) — sim_flow.md §5. */
 #include "sim_flow/sfa_priv.h"
+#include "enhanced/enhanced.h"   /* ENH: flaps up / down keys */
 
 #define BIT(off, b) ((DSB(off) >> (b)) & 1)
 
@@ -301,6 +302,9 @@ u16 controls_map(u16 ctl, u16 in)
     if (!binding_lookup(flags, DSB(in + 0x1B), far_make(SEG(0x3923), 0), ctl) &&
         DSB(in + 0x1B) >= 0x3B && DSB(in + 0x1B) <= 0x42)
         DSW(ctl + 0x10) = (u16)(DSB(in + 0x1B) - 0x23);
+    /* ENH: flaps up / flaps down keys (only sent with the enhancements on, enh_keys.c) */
+    if (DSB(in + 0x1B) == ENH_KEY_FLAPS_UP) DSW(ctl + 0x10) = ENH_CMD_FLAPS_UP;
+    else if (DSB(in + 0x1B) == ENH_KEY_FLAPS_DOWN) DSW(ctl + 0x10) = ENH_CMD_FLAPS_DOWN;
     if (view_get() > 5 && (DSW(ctl + 0x0E) & 3) == 3 && (DSW(ctl) || DSW(ctl + 2))) {
         DSW(ctl + 2) = 1;
         DSW(ctl) = 1;

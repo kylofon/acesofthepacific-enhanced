@@ -20,8 +20,19 @@ the Test Drive III launcher it is modelled on.
   * **Aspect** (`--aspect`): 4:3 as on a VGA monitor, or 1:1 square pixels.
   * **Window size** (`--scale`) and **Start in full screen** (`--fullscreen`; Alt+Enter switches).
   * **Sound**: off starts the game with `SDL_AUDIO_DRIVER=dummy`.
-* **In the game**: a pointer to the manual for the keys.
-* **Play** starts the game; the launcher stays open. **About**: version, author and links.
+* **Play** starts the game; the launcher stays open.
+
+## Menus
+
+* **File**: **Preferences** (**Always on top** keeps the launcher above other windows) and **Exit**.
+* **Settings > Key Bindings** shows the game's keys in the window, in three groups (flying, weapons, views
+  and game). Click a key and press the new one ("Press new key"; Shift, Ctrl or Alt can be held with it,
+  Esc cancels, **No key** leaves the action without one). A key already used by another action can be
+  moved, leaving that one without a key. **Default** puts every key back, **Apply** keeps them and goes
+  back, **Cancel** goes back without changing them. The game gets the changed ones with `--keys`. Esc,
+  Tab, Enter, the number keys, F1 - F6 and Ctrl / Alt + F1 - F10 keep their jobs. The flaps have a flaps
+  down key (F) and a flaps up key (Shift+F) instead of the original's one key that cycles them.
+* **About**: version, author and links.
 
 Everything is remembered in `%APPDATA%\Aces of the Pacific\settings.ini` (`~/.config/aces-of-the-pacific` on
 Linux). A folder or program left at its default is stored empty, so it follows the launcher if the whole
@@ -48,7 +59,9 @@ itself is linked in.
 ## Files
 
 * `app.cpp`: the wxWidgets application.
-* `launcher.h`, `launcher.cpp`: the window and the About box.
+* `launcher.h`, `launcher.cpp`: the window, its menus, Preferences, Key Bindings and the About box.
+* `keys.h`, `keys.cpp`: the game's keys that can be changed, their names and the "Press new key" prompt
+  (the game's own list is `src/enhanced/enh_keys.c`).
 * `game.h`, `game.cpp`: the file checks and starting the game.
 * `settings.h`, `settings.cpp`: `settings.ini`.
 * `icon.h`, `icon.cpp`: the app icon, a fighter over the sea drawn in code. `make_icon.py` (Pillow) writes the

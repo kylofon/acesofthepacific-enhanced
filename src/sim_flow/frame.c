@@ -1,6 +1,7 @@
 /* sim_flow: the sim frame step, draw order and command handler (5440) and the VCR glue (5d3c) —
  * sim_flow.md §6, §7. 5440:03aa/0269 are render3d's, 5440:07bd/07e1 video's. */
 #include "sim_flow/sfa_priv.h"
+#include "enhanced/enhanced.h"   /* ENH: flaps up / down commands */
 
 #define P()   PLAYER()
 #define CB()  ((u16)(PLAYER() + 0xAC))
@@ -328,6 +329,17 @@ menu_request:
         fl = fl == 2 ? 0 : (u8)((fl + 1) & 3);
         DSB(cb + 0x0E) = (u8)((DSB(cb + 0x0E) & 0xFC) | fl);
         if (!DSB(0x42D1)) msg1((s16)(0x22 + (DSB(cb + 0x0E) & 3)), 1);
+        DSW(0x435C) = 4;
+        break;
+    }
+    case ENH_CMD_FLAPS_DOWN:                                     /* ENH: flaps one step down / up */
+    case ENH_CMD_FLAPS_UP: {
+        u8 fl = DSB(cb + 0x0E) & 3, to = fl;
+        if (DSW(ctl + 0x10) == ENH_CMD_FLAPS_DOWN) { if (fl < 2) to = (u8)(fl + 1); }
+        else if (fl > 0) to = (u8)(fl - 1);
+        if (to == fl) break;
+        DSB(cb + 0x0E) = (u8)((DSB(cb + 0x0E) & 0xFC) | to);
+        if (!DSB(0x42D1)) msg1((s16)(0x22 + to), 1);
         DSW(0x435C) = 4;
         break;
     }

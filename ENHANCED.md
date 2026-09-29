@@ -65,6 +65,10 @@ resolution, instead of scaling the 320×200 picture.
   MISSION → END MISSION → debrief → main menu; DEMOAG film plays without a fatal; `--check` passes. The
   same fix belongs upstream in `../AcesOfThePacific` (`aotpport/src/sim_flow/cockpit.c` `lso_free`).
 
+- 2026-09-29: launcher menus (File: Preferences with Always on top, Exit; Settings: Key Bindings; About),
+  key bindings passed to the game with `--keys`, flaps down / flaps up keys instead of the one that cycles
+  them (see "Input").
+
 ## Stage 1 design
 
 Files: `src/enhanced/enhanced.h` (hooks), `enhanced.c` (options, pixel tags, capture of the 3D frame),
@@ -202,3 +206,15 @@ with `pal[t]` by a/255, resolved with the current DAC):
   key pressed), so e.g. Down held with Left does nothing until Left is released. Enhanced: every held key
   of the set is combined (up 1, down 2, left 4, right 8; opposite keys cancel), which the flight input
   already accepts as diagonals. `--classic` keeps the original behaviour.
+* Flaps (`sim_flow/frame.c commands`): the original's F cycles the flaps up, half, full, up. Enhanced: a
+  flaps down key (F) and a flaps up key (Shift+F), one step each, stopping at full / up. They reach AP as
+  scancodes 56h / 55h, which no keyboard sends and which have no ASCII or direction bits in AP's tables;
+  `controls_map` turns them into commands 61h / 60h. `--classic` keeps F cycling.
+* Key bindings (`enhanced/enh_keys.c`, hook in `host.c key_event`; the launcher's Settings > Key Bindings):
+  `--keys name=code,...` lists the actions moved from their default keys (code = XT make code, 100h = E0
+  prefix, 1000h Shift, 2000h Ctrl, 4000h Alt; 0 = no key). While AP runs, a key bound to an action is sent
+  as the action's own key, with Shift / Ctrl / Alt pressed or let go around it as that key needs; a key
+  that is the default of an action bound elsewhere is dropped; any other key goes through. Modifier keys
+  always go through. INTRO and PS (menus, typed names) get every key as it is. The launcher keeps Esc, Tab,
+  Enter, the number keys, F1 - F6 and Ctrl / Alt + F1 - F10 on their jobs; the keypad stays a second
+  stick.

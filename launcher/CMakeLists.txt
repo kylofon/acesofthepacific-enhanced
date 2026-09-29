@@ -26,6 +26,7 @@ add_executable(aotplauncher WIN32
     app.cpp
     game.cpp
     icon.cpp
+    keys.cpp
     launcher.cpp
     settings.cpp
 )

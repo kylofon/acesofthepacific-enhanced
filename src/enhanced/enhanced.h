@@ -83,6 +83,26 @@ static inline u32 enh_range(u32 r) { return enh_pass ? r * (u32)enh_view_dist : 
 bool enh_lod_finest(void);             /* ts_draw: take the last (finest) LOD */
 void enh_far_dot(bool inside);         /* scene.c draw_object around far_dot_draw: the dot is world */
 
+/* ---- key bindings and the flaps keys (enh_keys.c) --------------------------------------------------- *
+ * A key is an XT set-1 make code, ENH_KEY_GREY = sent after an E0 prefix, with the modifiers held with
+ * it. The flaps up / down keys reach AP as two scancodes no keyboard sends (no ASCII, no direction
+ * bits in its tables), which controls_map turns into two new commands. */
+#define ENH_KEY_GREY  0x0100
+#define ENH_KEY_SHIFT 0x1000
+#define ENH_KEY_CTRL  0x2000
+#define ENH_KEY_ALT   0x4000
+#define ENH_KEY_FLAPS_UP    0x55
+#define ENH_KEY_FLAPS_DOWN  0x56
+#define ENH_CMD_FLAPS_UP    0x60
+#define ENH_CMD_FLAPS_DOWN  0x61
+/* main.c --keys "name=code,...": the actions not on their default keys (code 0 = no key). False if the
+ * list can't be read. */
+bool enh_keys_parse(const char *spec);
+/* host.c key_event: key x went down / up. Returns -1 to send x as it is, or the number of keys put in
+ * out[] (at most 16; 0x80 = break, ENH_KEY_GREY = E0 prefix) to send instead. */
+int enh_key_map(u16 x, bool down, u16 *out);
+void enh_keys_focus_lost(void);        /* kbd.c: every key counts as up */
+
 /* ---- composition (platform/vga.c) --------------------------------------------------------------------- */
 /* pic = the 320x200 VGA picture (XRGB), tag = the pixel tags of the same pixels, pal = the DAC as XRGB,
  * shown = the page segment displayed, changed = pic differs from the last call. Writes the output frame

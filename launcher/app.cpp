@@ -10,9 +10,9 @@ public:
         SetAppName("Aces of the Pacific Enhanced");
         SetVendorName("Krzysztof Kania");
         if (!wxApp::OnInit()) return false;
-        auto* dialog = new LauncherDialog;
-        SetTopWindow(dialog);
-        dialog->Show();
+        auto* frame = new LauncherFrame;
+        SetTopWindow(frame);
+        frame->Show();
         return true;
     }
 };
