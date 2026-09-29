@@ -55,7 +55,7 @@ if(WIN32)
         COMMAND_EXPAND_LISTS)
 endif()
 
-# The launcher ("Aces of the Pacific"): the game folder, the game speed, sound and display options;
+# The launcher ("Aces of the Pacific Enhanced"): the game folder, the game speed, sound and display options;
 # built beside aotp-enhanced.exe. It needs wxWidgets 3.2 (MSYS2: mingw-w64-x86_64-wxwidgets3.2-msw) and a C++17
 # compiler.
 option(AOTP_LAUNCHER "Also build the launcher, Aces of the Pacific Enhanced.exe (wxWidgets)" ON)

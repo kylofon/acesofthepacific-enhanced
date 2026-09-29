@@ -1,8 +1,8 @@
-# Aces of the Pacific (the launcher)
+# Aces of the Pacific Enhanced (the launcher)
 
-`Aces of the Pacific.exe` starts `aotp`, the SDL3 port of Aces of the Pacific, with the options chosen in its
-window. It is built with [wxWidgets](https://www.wxwidgets.org/) 3.2 from the platform's own controls, like
-the Test Drive III launcher it is modelled on.
+`Aces of the Pacific Enhanced.exe` starts `aotp-enhanced`, the enhanced SDL3 port of Aces of the Pacific, with
+the options chosen in its window. It is built with [wxWidgets](https://www.wxwidgets.org/) 3.2 from the
+platform's own controls, like the faithful port's launcher it is modelled on.
 
 ## The window
 
@@ -34,19 +34,19 @@ the Test Drive III launcher it is modelled on.
   down key (F) and a flaps up key (Shift+F) instead of the original's one key that cycles them.
 * **About**: version, author and links.
 
-Everything is remembered in `%APPDATA%\Aces of the Pacific\settings.ini` (`~/.config/aces-of-the-pacific` on
-Linux). A folder or program left at its default is stored empty, so it follows the launcher if the whole
+Everything is remembered in `%APPDATA%\Aces of the Pacific Enhanced\settings.ini`
+(`~/.config/aces-of-the-pacific-enhanced` on Linux), the keys under `[Keys]`. A folder or program left at its default is stored empty, so it follows the launcher if the whole
 folder moves. Delete the file to go back to the defaults.
 
 ## Building
 
 Needs CMake 3.24, a C++17 compiler and wxWidgets 3.2 (MSYS2 `mingw64`: `mingw-w64-x86_64-wxwidgets3.2-msw`;
-Debian and Ubuntu: `libwxgtk3.2-dev`). To build it beside `aotp-enhanced.exe`, add `-DAOTP_LAUNCHER=ON` when
-configuring the port:
+Debian and Ubuntu: `libwxgtk3.2-dev`). The main project builds it beside `aotp-enhanced.exe` (`-DAOTP_LAUNCHER=OFF`
+leaves it out):
 
 ```bash
-cmake -S aotpport -B aotpport/build-release -G Ninja -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_BUILD_TYPE=Release -DAOTP_LAUNCHER=ON
-cmake --build aotpport/build-release
+cmake -S . -B build -G Ninja -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_BUILD_TYPE=Release
+cmake --build build
 ```
 
 It also builds on its own (`cmake -S launcher -B launcher/build -G Ninja`); then choose the program in the

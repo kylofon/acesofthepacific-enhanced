@@ -1,5 +1,5 @@
 // settings.h -- settings kept between runs in settings.ini: under
-// %APPDATA%\Aces of the Pacific on Windows, and ~/.config/aces-of-the-pacific-enhanced on Linux.
+// %APPDATA%\Aces of the Pacific Enhanced on Windows, and ~/.config/aces-of-the-pacific-enhanced on Linux.
 // Every change is written straight away.
 #pragma once
 
