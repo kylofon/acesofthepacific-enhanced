@@ -263,6 +263,46 @@ static void present(void)
 
 static Uint64 last_present_ns;
 
+/* the time between two presented frames: the display's refresh period less 1.5 ms (so VSync, not this
+ * timer, decides), at least 4 ms; 60 Hz when the display does not say */
+static Uint64 present_interval(void)
+{
+    static Uint64 iv, checked_at;
+    Uint64 now = SDL_GetTicksNS();
+    if (!iv || now - checked_at > SDL_NS_PER_SECOND) {    /* the window may move to another display */
+        float hz = 0;
+        SDL_DisplayID d = window ? SDL_GetDisplayForWindow(window) : 0;
+        const SDL_DisplayMode *m = d ? SDL_GetCurrentDisplayMode(d) : NULL;
+        if (m) hz = m->refresh_rate;
+        if (!(hz > 20)) hz = 60;
+        iv = (Uint64)(1e9 / hz) - 1500000;
+        if (iv < 4 * SDL_NS_PER_MS) iv = 4 * SDL_NS_PER_MS;
+        checked_at = now;
+    }
+    return iv;
+}
+
+/* ENH: developer aid AOTP_ENH_PROF=1: where the main thread's time goes, printed every 2 s */
+static int loop_prof = -1;
+static Uint64 lp_t0, lp_frame, lp_present, lp_delay, lp_ticks, lp_nframe, lp_npresent;
+static void loop_prof_add(Uint64 *slot, Uint64 t0) { if (loop_prof > 0) *slot += SDL_GetTicksNS() - t0; }
+static void loop_prof_print(void)
+{
+    if (loop_prof < 0) { const char *e = SDL_getenv("AOTP_ENH_PROF"); loop_prof = e && *e && *e != '0'; }
+    if (!loop_prof) return;
+    Uint64 now = SDL_GetTicksNS();
+    if (!lp_t0) lp_t0 = now;
+    if (now - lp_t0 < 2 * SDL_NS_PER_SECOND) return;
+    double all = (double)(now - lp_t0);
+    Uint64 other = now - lp_t0 - lp_frame - lp_present - lp_delay - lp_ticks;
+    fprintf(stderr, "[loop] %.1f fps shown (%llu built) | build %.1f%% present %.1f%% sleep %.1f%% ticks %.1f%% "
+            "game %.1f%% | build %.2f ms, present %.2f ms each\n",
+            lp_npresent * 1e9 / all, (unsigned long long)lp_nframe, 100.0 * lp_frame / all,
+            100.0 * lp_present / all, 100.0 * lp_delay / all, 100.0 * lp_ticks / all, 100.0 * other / all,
+            lp_nframe ? lp_frame / 1e6 / lp_nframe : 0.0, lp_npresent ? lp_present / 1e6 / lp_npresent : 0.0);
+    lp_t0 = now; lp_frame = lp_present = lp_delay = lp_ticks = lp_nframe = lp_npresent = 0;
+}
+
 /* ---------------------------------------------------------------- scripted keys (AOTP_KEYS) */
 
 static void scripted_keys(void)
@@ -351,28 +391,41 @@ void host_pump(void)
     bool worked = false;
     Uint64 now = SDL_GetTicksNS();
     int budget = 118;                               /* at most 0.5 s of catch-up per call */
+    Uint64 pt = SDL_GetTicksNS();
     while (tick_due_ns(ticks_run + 1) <= now && budget-- > 0) {
         ticks_run++;
         if (tick_handler) tick_handler();
         worked = true;
     }
+    loop_prof_add(&lp_ticks, pt);
     if (budget < 0)                                 /* fell too far behind: resynchronise the clock */
         clock_start_ns = now - (tick_due_ns(ticks_run) - clock_start_ns);
 
-    /* Present at most once per ~8 ms; VSync paces it further. */
-    if (frame_source && now - last_present_ns >= 8 * SDL_NS_PER_MS) {
-        if (!frame_source(frame)) snapshot_static();
+    /* Present about once per refresh of the display (from the start of one frame to the next, so the
+     * frame's own work does not lengthen the period); VSync aligns it. */
+    if (frame_source && now - last_present_ns >= present_interval()) {
+        pt = SDL_GetTicksNS();
+        last_present_ns = pt;
+        bool built = frame_source(frame);
+        loop_prof_add(&lp_frame, pt);
+        lp_nframe++;
+        if (!built) snapshot_static();
         else {
+            pt = SDL_GetTicksNS();
             present();
-            last_present_ns = SDL_GetTicksNS();
+            loop_prof_add(&lp_present, pt);
+            lp_npresent++;
             worked = true;
         }
     }
     if (!worked) {
         Uint64 next = tick_due_ns(ticks_run + 1);
         now = SDL_GetTicksNS();
+        pt = now;
         if (next > now) SDL_DelayNS(SDL_min(next - now, SDL_NS_PER_MS));
+        loop_prof_add(&lp_delay, pt);
     }
+    loop_prof_print();
 }
 
 void host_wait_until_ns(uint64_t t)
@@ -506,6 +559,11 @@ static void process_events(void)
             if (ev.key.key == SDLK_RETURN && (ev.key.mod & SDL_KMOD_ALT)) {
                 if (!ev.key.repeat)
                     SDL_SetWindowFullscreen(window, !(SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN));
+                break;
+            }
+            /* ENH: Ctrl+Alt+G toggles the ground dots' debug overlay */
+            if (ev.key.key == SDLK_G && (ev.key.mod & SDL_KMOD_CTRL) && (ev.key.mod & SDL_KMOD_ALT)) {
+                if (!ev.key.repeat) enh_dots_debug = !enh_dots_debug;
                 break;
             }
             key_event(ev.key.scancode, true);

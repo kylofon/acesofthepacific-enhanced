@@ -73,7 +73,21 @@ cmake --build build
 | `--view-dist N` | View distance, × the original's (default 3, 1–8) |
 | `--no-lod-enh` | Keep the original's model detail by distance |
 | `--no-haze-enh` | No haze; banded sky and hard horizon as the original |
-| `--keys NAME=CODE,...` | Changed keys (written by the launcher's Key Bindings) |
+| `--dots-range N` | Ground dots out to N cells of 1024 units (default 12, 1–64; the original about 4) |
+| `--dots-alt N` | Ground dots up to this altitude (default 8000, 0–30000; the original 4000) |
+| `--dots-size N` | Ground dot size, % of an original pixel (default 100, 10–400) |
+| `--dots-full N` | Ground dots have their full size from N units away, nearer ones are smaller (default 4096) |
+| `--dots-near N` | The nearest ground dots' size, % of the full size (default 25) |
+| `--dots-scatter N` | Ground dots moved off the grid by up to N % of half a cell (default 40, 0 = straight rows) |
+| `--dots-far N` | Ground dots denser with the distance: spacing halved N times at the range's edge (default 2, 0–3) |
+| `--dots-fade N` | Ground dots fade out from N % of the range to its edge (default 60, 100 = no fade) |
+| `--dots-speckle N` | Beyond the range, out to the horizon, a faint speckle over N % of the ground (default 3, 0–40) |
+| `--dots-far-bright N` | Far speckle and wave crests: N % of the dots' colour over the sea (default 60) |
+| `--dots-edge N` | Beyond the full-size distance, ground dots shrink to N % of their size at the range's edge (default 35) |
+| `--dots-cover N` | Crowded ground dots are skipped to cover at most N % of the ground (default 8, 1–50) |
+| `--dots-debug` | Start with the ground dots' debug overlay on (grid, range rings, horizon; Ctrl+Alt+G toggles it) |
+| `--no-dots-enh` | Ground dots as the original's pixels, at the simulator's frame rate |
+| `--keys NAME=CODE,...` | Changed keys (written by the launcher's Key bindings) |
 | `--classic` | The original picture and behaviour |
 | `--check` | Check that the three programs load, then exit |
 
@@ -85,14 +99,14 @@ As in the original (see its manual), except:
 
 * F lowers the flaps a step, Shift+F raises them.
 * Held direction keys combine.
-* Settings > Key Bindings in the launcher changes the keys.
+* Game settings > Key bindings in the launcher changes the keys.
 * A gamepad acts as the joystick. Alt+Enter: full screen.
 
 ## Known limitations
 
 * Explosions, smoke, clouds, the sun, moon and stars are the original's pixels, scaled.
 * The INTRO and the shell's aircraft viewer are scaled, not re-rendered.
-* The launcher has no controls for the picture options yet (use the command line).
+* The launcher has no controls for the picture options other than the ground dots yet (use the command line).
 * MT-32, Tandy, PS/1 and PC speaker sound play as AdLib.
 
 ## Layout

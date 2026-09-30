@@ -1,4 +1,4 @@
-/* ENH: key bindings (the launcher's Settings > Key Bindings) and the flaps up / flaps down keys.
+/* ENH: key bindings (the launcher's Game settings > Key bindings) and the flaps up / flaps down keys.
  *
  * Keys are XT set-1 make codes as host.c sends them (ENH_KEY_GREY = sent after an E0 prefix) with the
  * modifiers held with them (ENH_KEY_SHIFT / CTRL / ALT). While AP runs, a key bound to an action is sent

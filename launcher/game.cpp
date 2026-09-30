@@ -54,6 +54,22 @@ bool LaunchGame(const GameOptions& o, wxString& error) {
                                "--aspect", o.aspect43 ? "4:3" : "1:1",
                                "--frame-ticks", wxString::Format("%d", o.frameTicks)};
     if (o.fullscreen) args.push_back("--fullscreen");
+    if (!o.graphics.smoothDots) {
+        args.push_back("--no-dots-enh");
+    } else {
+        args.insert(args.end(), {"--dots-range", wxString::Format("%d", o.graphics.dotsRange),
+                                 "--dots-alt", wxString::Format("%d", o.graphics.dotsAlt),
+                                 "--dots-size", wxString::Format("%d", o.graphics.dotsSize),
+                                 "--dots-full", wxString::Format("%d", o.graphics.dotsFull),
+                                 "--dots-near", wxString::Format("%d", o.graphics.dotsNear),
+                                 "--dots-scatter", wxString::Format("%d", o.graphics.dotsScatter),
+                                 "--dots-far", wxString::Format("%d", o.graphics.dotsFar),
+                                 "--dots-fade", wxString::Format("%d", o.graphics.dotsFade),
+                                 "--dots-speckle", wxString::Format("%d", o.graphics.dotsSpeckle),
+                                 "--dots-far-bright", wxString::Format("%d", o.graphics.dotsFarBright),
+                                 "--dots-edge", wxString::Format("%d", o.graphics.dotsEdge),
+                                 "--dots-cover", wxString::Format("%d", o.graphics.dotsCover)});
+    }
     if (!o.keys.empty()) {
         args.push_back("--keys");
         args.push_back(o.keys);

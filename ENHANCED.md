@@ -69,6 +69,9 @@ resolution, instead of scaling the 320×200 picture.
   key bindings passed to the game with `--keys`, flaps down / flaps up keys instead of the one that cycles
   them (see "Input").
 
+- 2026-09-30: **ground dots at the display rate** (see "Ground dots" below); launcher menu Game settings
+  with Key bindings and Graphics (the ground dots' settings).
+
 ## Stage 1 design
 
 Files: `src/enhanced/enhanced.h` (hooks), `enhanced.c` (options, pixel tags, capture of the 3D frame),
@@ -123,8 +126,8 @@ Recorder → DEMOAG → Load, Play, Cockpit).
 ### Known limitations (Stage 1)
 
 * Only the polygon world and the horizon are drawn again. Sprites/bitmaps (explosions, smoke, clouds drawn as
-  bitmaps), discs, the sun, moon and stars, one-pixel far aircraft dots and the ground-speed dots are kept
-  as the original's pixels (scaled, tag "scene") at the sim frame's position: they do not move smoothly and
+  bitmaps), discs, the sun, moon and stars, one-pixel far aircraft dots and the ground-speed dots (drawn
+  by the host since, see "Ground dots") are kept as the original's pixels (scaled, tag "scene") at the sim frame's position: they do not move smoothly and
   hide the high-resolution view under them.
 * The composition mask is the 320×200 tag map of the sim frame: an object carried by the interpolation
   near the cockpit frame shows through at the frame's (low-resolution) edges only; the view lags the
@@ -200,6 +203,74 @@ with `pal[t]` by a/255, resolved with the current DAC):
   resolve, composition) every 2 s.
 * If the EMS allocation changed during the pass (not seen), it cannot be undone; a warning is printed once.
 
+## Ground dots
+
+The ground-speed dots (`effects.c ground_speed_dots`, the after-ground-layer callback `DS:36D0`): the
+original draws, below 4000 units of camera altitude, a 9 × 9 grid of one-pixel dots on the ground (z = 0,
+1024 units apart) around the camera, each in the colour its table (`DS:102E`, 88h entries) gives the pixel
+under it (colours above 87h are left alone). They were the sim frame's pixels (Stage 1 limitation).
+
+Enhanced (hook `enh_ground_dots`, before the altitude test): the snapshot records that the dots are drawn,
+where (the number of polygons recorded so far: after the ground layer, before the objects) and the colour
+table; the original's dot pixels are tagged world, so the host render covers them. At every displayed frame
+the host projects the grid points within `--dots-range` cells (a circle, default 12; the original's grid
+reaches about 4) from the interpolated camera, when it is no higher than `--dots-alt` (default 8000). With
+`--dots-far F` (default 2, 0..3) the dots get denser with the distance: levels 1..F add the points of grids
+1024 / 2^l apart that the coarser ones lack, a point of level l showing from rmax · (l − 1 + t) / F on (t in
+0..1 hashed from the point), so the spacing halves F times out to the range's edge, where they are
+densest; the dots appear one by one at fixed places, not in bands. Each point is moved off the grid along x and y by up to `--dots-scatter` % of half its level's cell (default 40; a hash of
+the grid point, so the same at every frame), so the dots do not line up in rows. Each is drawn as a square
+of `--dots-size` % of an original pixel (default 100) from `--dots-full` units of eye distance on (default
+4096), shrinking nearer the eye down to `--dots-near` % of that (default 25), so the dots in front are not
+large blocks; beyond `--dots-full` they shrink again, geometrically with the eye distance, down to
+`--dots-edge` % of the size at the range's edge (default 35), so the far ones read as farther. They are drawn after the primitives of the ground layer: every sample under it of a colour up to 87h takes
+the table's colour, keeping the sample's haze, so far dots fade into the haze.
+
+Edge and far field: from `--dots-fade` % of the range on (default 60) the points fade out, each kept
+with the chance smoothstep((rmax − r) / (rmax − r0)), so none are left at the range's edge and the field
+has no hard edge. Where the dots would crowd into a solid speckle (far and low: many dots per sample),
+they are thinned to cover at most `--dots-cover` % of the ground (default 8; each kept with the chance cover / c, c = the
+dots per unit of ground at r of all levels × the ground one sample sees there, depth³ / (A (f·SA)²), ×
+the samples a dot covers, at least one output pixel (AA × AA), since every pixel it touches shows it; the same hash as the fade). Over the fade, out to the horizon, a faint speckle fades
+in as the dots fade out (alone beyond the edge): each sample's ray is taken to the ground (z = 0); the ground there is split into cells fixed on
+the ground, per world axis a power of two at least 0.7 × the sample's footprint along it (between two sizes,
+chosen per cell by a hash, so the size changes without a seam), and a cell is a dot with the chance
+`--dots-speckle` % (default 3, 0..40; 0 = none).
+
+Colour: a dot no longer replaces the sample's colour: the sample keeps the ground's colour and the dot's
+colour (from the table) is mixed over it by the dot's intensity, before the haze (two more sample buffers,
+cleared by the horizon and by every primitive drawn over the dots). From a quarter of the range out to its
+edge the dots fade into the ground (intensity 1 → 0), except the "crests", which fade only to
+`--dots-far-bright` % (default 60), the intensity of the far speckle too; a dot is a crest with the chance
+speckle / (the share of the ground the dots cover there), so the lighter dots cover the speckle's share
+throughout and meet it at the edge: at a distance only the larger waves show.
+
+Cost: the horizon, the sea haze and the far field fill only the runs of samples under "world" pixels
+(per original row, gaps under 2 pixels closed), not what the cockpit covers; each run is split once into
+sky and sea, the sea's haze is evaluated every 32 samples (every 8 where it changes by more than 3 of 255)
+and interpolated; the far field works out per row the samples whose ground lies beyond where it starts
+(a quadratic in the sample index) and skips the rest, with integer hashes for its cells; the final
+resolve mixes two channels at a time. The dots' grid is walked only inside the part of the ground that
+can show: the square around the camera cut by the view's half-planes (near, the sides, the top and bottom
+of the drawn rows, a dot's margin) gives per grid row the x range (widened by the scatter), so looking up
+walks nothing. The thinning keeps the coarser levels first (a point of level l is kept if
+dlo + rnd · dl < keep · dens, dlo the coarser levels' density there, dl its own), so a level l ≥ 1 is
+walked only nearer than the eye depth where the coarser levels (at least 4^(l−1) per cell) already give
+every dot kept: depth³ < cover · A · (f·SA)² · 1024² / (AA² · 4^(l−1)), plus the scatter. With range 64
+and far density 3 this took a displayed frame from 36–150 ms of single-threaded work to 0–7 ms.
+
+Frame pacing (`host.c`): a frame is built and presented about once per refresh of the window's display
+(its refresh period less 1.5 ms, from the start of one frame to the next; VSync aligns it); it was "8 ms
+after the last present ended", which with the frame's own work capped the display at 60–80 fps whatever
+the view. `AOTP_ENH_PROF=1` also prints `[loop]`: frames shown per second and the main thread's share in
+building frames, presenting, sleeping, timer ticks and the game's own code.
+
+Debug overlay (`--dots-debug`, Ctrl+Alt+G toggles it in the game): over the world view, the dots' ground
+grid (1024 units) out to the range's edge, green along the view and yellow across it (where the lines of
+a family would be under 3 pixels apart only every 2nd, 4th, ... one is drawn), cyan rings where the dots
+start fading out and at the range's edge, and the horizon (the eye-level line) in red.
+`--no-dots-enh` (and `--classic`) keeps the original's pixels.
+
 ## Input
 
 * Direction keys (`platform/kbd.c kbd_dir_bits`): the original keeps one direction per key set (the last
@@ -210,7 +281,7 @@ with `pal[t]` by a/255, resolved with the current DAC):
   flaps down key (F) and a flaps up key (Shift+F), one step each, stopping at full / up. They reach AP as
   scancodes 56h / 55h, which no keyboard sends and which have no ASCII or direction bits in AP's tables;
   `controls_map` turns them into commands 61h / 60h. `--classic` keeps F cycling.
-* Key bindings (`enhanced/enh_keys.c`, hook in `host.c key_event`; the launcher's Settings > Key Bindings):
+* Key bindings (`enhanced/enh_keys.c`, hook in `host.c key_event`; the launcher's Game settings > Key bindings):
   `--keys name=code,...` lists the actions moved from their default keys (code = XT make code, 100h = E0
   prefix, 1000h Shift, 2000h Ctrl, 4000h Alt; 0 = no key). While AP runs, a key bound to an action is sent
   as the action's own key, with Shift / Ctrl / Alt pressed or let go around it as that key needs; a key

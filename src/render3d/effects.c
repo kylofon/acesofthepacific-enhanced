@@ -7,7 +7,7 @@
 #include "video/video.h"
 #include "sim_world/sim_world.h"
 #include "sim_flow/sim_flow.h"
-#include "enhanced/enhanced.h"    /* ENH: range of the enhanced pass */
+#include "enhanced/enhanced.h"    /* ENH: range of the enhanced pass, ground dots */
 
 enum {
     E_OVERCAST_A = 0x4512, E_OVERCAST_B = 0x42C9, E_CAMERA = 0x437E,
@@ -359,7 +359,10 @@ void ground_speed_dots(void)
     u8 S = DSB(cam);
     s16 f = (s16)(1 << S);
     u16 eye = (u16)(DSW(cam + 2) + 2);
+    bool host = enh_ground_dots(DSP(E_DOT_COL));           /* ENH: the host draws the dots (any altitude) */
     if (DSSL(eye + 8) > 4000) return;
+    u8 vclass = enh_vclass;
+    if (host) enh_vclass = ENH_TAG_WORLD;                  /* ENH: the host render shows through */
     u16 mk = stk_mark(), rc = stk_alloc(8), P = stk_alloc(6), U = stk_alloc(6), V = stk_alloc(6),
         R = stk_alloc(6), M = stk_alloc(20);
     s16 cy = cockpit_view_window(rc);
@@ -402,6 +405,7 @@ void ground_speed_dots(void)
         vadd(P, U);
     }
     stk_release(mk);
+    enh_vclass = vclass;                                   /* ENH */
 }
 
 __attribute__((constructor)) static void effects_codeptrs(void)

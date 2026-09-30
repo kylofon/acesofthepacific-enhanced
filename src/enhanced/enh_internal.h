@@ -41,6 +41,9 @@ typedef struct {
     bool has_sky, bands_on;
     u8 sky, sea, bands, step;
     u16 spacing;
+    bool dots;                         /* enh_ground_dots: drawn before polygon dots_at */
+    u32 dots_at;
+    u8 dot_col[0x88];
     EPoly *poly; u32 npoly, cpoly;
     EV3 *vert; u32 nvert, cvert;
     EObj *obj; u32 nobj, cobj;
@@ -51,6 +54,9 @@ extern ESnap enh_snaps[ENH_NSNAP];
 extern int enh_scale, enh_aa;
 extern bool enh_wide;
 extern bool enh_haze;
+extern int enh_dots_range, enh_dots_alt, enh_dots_size, enh_dots_full, enh_dots_near, enh_dots_scatter,
+    enh_dots_far, enh_dots_fade, enh_dots_speckle, enh_dots_far_bright,
+    enh_dots_edge, enh_dots_cover;
 
 /* developer aid AOTP_ENH_PROF=1: mean times per slot printed every 2 s */
 enum { PROF_SCENE, PROF_PASS, PROF_COPY, PROF_RENDER, PROF_RESOLVE, PROF_COMPOSE, PROF_N };

@@ -1,5 +1,5 @@
 // launcher.h -- the launcher window: choose the game folder, the game's speed and the display and
-// sound options, then Play. Settings > Key Bindings shows the game's keys in the window to change them.
+// sound options, then Play. Game settings > Key bindings and > Graphics show their page in the window.
 #pragma once
 
 #include <wx/frame.h>
@@ -13,6 +13,7 @@ class wxButton;
 class wxCheckBox;
 class wxChoice;
 class wxSimplebook;
+class wxSlider;
 class wxSpinCtrl;
 class wxStaticBitmap;
 class wxStaticText;
@@ -27,6 +28,7 @@ public:
 private:
     wxWindow* CreateMainPage(wxWindow* parent);
     wxWindow* CreateKeysPage(wxWindow* parent);
+    wxWindow* CreateGraphicsPage(wxWindow* parent);
     void CreateMenus();
 #ifdef __WXMSW__
     WXLRESULT MSWWindowProc(WXUINT msg, WXWPARAM wParam, WXLPARAM lParam) override;
@@ -45,11 +47,16 @@ private:
     void Save();
 
     void FitPage();
-    // Key Bindings: the page, a new key for action i, the buttons from edited_.
-    void OpenKeyBindings();
-    void CloseKeyBindings();
+    // A settings page in place of the main one, and back.
+    void OpenPage(int page);
+    void ClosePage();
+    // Key bindings: a new key for action i, the buttons from edited_.
     void ChangeKey(int action);
     void ShowEditedKeys();
+    // Graphics: the controls from / to a Graphics.
+    void ShowGraphics(const Graphics& g);
+    Graphics EditedGraphics() const;
+    void UpdateGraphicsState();
 
     wxSimplebook* book_ = nullptr;
     wxTextCtrl* folder_ = nullptr;
@@ -62,10 +69,15 @@ private:
     wxCheckBox* fullscreen_ = nullptr;
     wxCheckBox* sound_ = nullptr;
     wxButton* play_ = nullptr;
-    // The Key Bindings page: one button per action.
+    // The Key bindings page: one button per action.
     std::vector<wxButton*> keyButtons_;
     keys::Bindings bindings_;  // saved
-    keys::Bindings edited_;    // on the Key Bindings page
+    keys::Bindings edited_;    // on the Key bindings page
+    // The Graphics page: the ground dots; a slider and a number field for each value (DOT_VALUES).
+    wxCheckBox* smoothDots_ = nullptr;
+    std::vector<wxSlider*> dotSliders_;
+    std::vector<wxSpinCtrl*> dotFields_;
+    Graphics graphics_;  // saved
     bool topmost_ = false;
     bool loading_ = true;  // no edits are recorded while the window is built
 };

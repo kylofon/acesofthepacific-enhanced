@@ -16,6 +16,7 @@
 #include <wx/settings.h>
 #include <wx/simplebook.h>
 #include <wx/sizer.h>
+#include <wx/slider.h>
 #include <wx/spinctrl.h>
 #include <wx/statbmp.h>
 #include <wx/statbox.h>
@@ -39,7 +40,58 @@ const char* const WEBSITE = "https://kkania.com";
 const char* const SUPPORT = "https://buymeacoffee.com/krzysztofkania";
 const char* const SECTION = "Game";
 
-const int ID_KEY_BINDINGS = wxID_HIGHEST + 1, ID_ABOUT = wxID_HIGHEST + 2;
+const int ID_KEY_BINDINGS = wxID_HIGHEST + 1, ID_ABOUT = wxID_HIGHEST + 2, ID_GRAPHICS = wxID_HIGHEST + 3;
+// The book's pages.
+const int PAGE_MAIN = 0, PAGE_KEYS = 1, PAGE_GRAPHICS = 2;
+const char* const GRAPHICS = "Graphics";
+
+// The ground dots' values on the Graphics page: the settings.ini key, the field, the limits and the
+// slider's page step (as aotp's --dots-* options, src/enhanced/enhanced.h), and the row's texts.
+struct DotValue {
+    const char* key;
+    int Graphics::*field;
+    int min, max, step;
+    const char* label;
+    const char* note;
+    const char* tip;
+};
+const DotValue DOT_VALUES[] = {
+    {"GroundDotsRange", &Graphics::dotsRange, 1, 64, 4, "&Range:", "cells of 1024 (original about 4)",
+     "How far the dots reach from the view, in grid cells (the dots are 1024 units apart). Beyond, only "
+     "the faint speckle (Horizon speckle) goes on to the horizon."},
+    {"GroundDotsFade", &Graphics::dotsFade, 0, 100, 10, "Fade &out from:", "% of the range",
+     "The dots thin out from this share of the range to its edge, where none are left, so the field has no "
+     "hard edge. 100 = no fade."},
+    {"GroundDotsSpeckle", &Graphics::dotsSpeckle, 0, 40, 1, "&Horizon speckle:", "% of the ground (0 = none)",
+     "Beyond the range, out to the horizon: a faint speckle in the dots' colours, fixed on the ground, over "
+     "this share of it. It fades in as the dots fade out."},
+    {"GroundDotsFarBrightness", &Graphics::dotsFarBright, 0, 100, 10, "Far &brightness:", "% of the dots' colour",
+     "Farther away the dots fade into the ground under them; only some, the larger wave crests, stay lighter, "
+     "as does the horizon speckle: they show this share of the dots' colour over the ground (100 = the full "
+     "dot colour, lower = closer to the sea's own colour)."},
+    {"GroundDotsFarDensity", &Graphics::dotsFar, 0, 3, 1, "Far densit&y:", "x2 steps at the edge (0 = even)",
+     "The dots get denser with the distance, densest at the edge of the range: their spacing is halved this "
+     "many times from the view out to the edge (1 = twice as close, 2 = four times, 3 = eight times). "
+     "0 keeps them evenly spaced, as the original."},
+    {"GroundDotsMaxCoverage", &Graphics::dotsCover, 1, 50, 1, "&Max coverage:", "% of the ground",
+     "Where the dots would crowd together (far away, low over the ground), some are skipped so they cover "
+     "at most this share of the ground. Lower = fewer dots in the distance."},
+    {"GroundDotsAltitude", &Graphics::dotsAlt, 0, 30000, 1000, "Al&titude:", "highest (original 4000)",
+     "The dots are shown while the view is no higher than this."},
+    {"GroundDotsSize", &Graphics::dotsSize, 10, 400, 50, "Si&ze:", "% of an original pixel",
+     "The size of a dot at the full-size distance and beyond: 100 is one pixel of the original 320x200 picture."},
+    {"GroundDotsFullSizeFrom", &Graphics::dotsFull, 0, 16384, 1024, "&Full size from:", "units away",
+     "Dots nearer than this are drawn smaller, the nearer the smaller. 0 = every dot has the full size."},
+    {"GroundDotsNearSize", &Graphics::dotsNear, 5, 100, 10, "&Nearest size:", "% of the size",
+     "The size of the nearest dots, in percent of the full size."},
+    {"GroundDotsEdgeSize", &Graphics::dotsEdge, 5, 100, 5, "&Edge size:", "% of the size at the range's edge",
+     "Beyond the full-size distance the dots get smaller again with the distance, down to this percent of "
+     "the size at the edge of the range. 100 = they keep the full size."},
+    {"GroundDotsScatter", &Graphics::dotsScatter, 0, 100, 10, "S&catter:", "% (0 = straight rows)",
+     "Moves each dot off its place in the grid, by up to this percent of half a cell, so the dots don't line "
+     "up in straight rows. Each dot keeps its place: they don't jump around."},
+};
+const int DOT_VALUE_COUNT = static_cast<int>(sizeof DOT_VALUES / sizeof DOT_VALUES[0]);
 
 const int MIN_SCALE = 1, MAX_SCALE = 6, DEFAULT_SCALE = 3;
 // The game's speed: timer ticks (236.7 a second) per simulator frame (aotp --frame-ticks).
@@ -81,6 +133,34 @@ wxTextCtrl* PathRow(wxWindow* parent, wxFlexGridSizer* grid, const wxString& lab
     return text;
 }
 
+// A label, a slider, a number field and a note in a row of a four-column grid; the slider and the field
+// follow each other.
+void SliderRow(wxWindow* parent, wxFlexGridSizer* grid, const wxString& label, const wxString& note,
+               const wxString& tip, int min, int max, int step, wxSlider** slider, wxSpinCtrl** spin) {
+    grid->Add(new wxStaticText(parent, wxID_ANY, label), 0, wxALIGN_CENTER_VERTICAL);
+    *slider = new wxSlider(parent, wxID_ANY, min, min, max, wxDefaultPosition, wxSize(parent->FromDIP(220), -1));
+    (*slider)->SetPageSize(step);
+    (*slider)->SetLineSize(step > 10 ? step / 10 : 1);
+    (*slider)->SetToolTip(tip);
+    *spin = new wxSpinCtrl(parent, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(parent->FromDIP(80), -1),
+                           wxSP_ARROW_KEYS, min, max, min);
+    (*spin)->SetIncrement(step > 10 ? step / 10 : 1);
+    (*spin)->SetToolTip(tip);
+    grid->Add(*slider, 0, wxALIGN_CENTER_VERTICAL | wxEXPAND);
+    grid->Add(*spin, 0, wxALIGN_CENTER_VERTICAL);
+    grid->Add(GreyText(parent, note), 0, wxALIGN_CENTER_VERTICAL);
+    wxSlider* s = *slider;
+    wxSpinCtrl* n = *spin;
+    s->Bind(wxEVT_SLIDER, [s, n](wxCommandEvent&) { n->SetValue(s->GetValue()); });
+    n->Bind(wxEVT_SPINCTRL, [s, n](wxSpinEvent&) { s->SetValue(n->GetValue()); });
+    // A typed number moves the slider as it is typed (the field keeps it in range when it loses focus).
+    n->Bind(wxEVT_TEXT, [s, n](wxCommandEvent& event) {
+        long v;
+        if (event.GetString().ToLong(&v) && v >= n->GetMin() && v <= n->GetMax()) s->SetValue(static_cast<int>(v));
+        event.Skip();
+    });
+}
+
 }  // namespace
 
 LauncherFrame::LauncherFrame()
@@ -91,11 +171,17 @@ LauncherFrame::LauncherFrame()
     if (topmost_) SetWindowStyleFlag(GetWindowStyleFlag() | wxSTAY_ON_TOP);
     bindings_ = keys::Load();
     edited_ = bindings_;
+    graphics_.smoothDots = settings::GetInt(GRAPHICS, "SmoothGroundDots", 1) != 0;
+    for (const DotValue& d : DOT_VALUES) {
+        int& v = graphics_.*d.field;
+        v = wxMax(d.min, wxMin(d.max, settings::GetInt(GRAPHICS, d.key, v)));
+    }
 
-    // The launcher and, in its place while it is open, Key Bindings.
+    // The launcher and, in its place while one is open, a settings page (PAGE_*).
     book_ = new wxSimplebook(this);
     book_->AddPage(CreateMainPage(book_), "Game");
-    book_->AddPage(CreateKeysPage(book_), "Key Bindings");
+    book_->AddPage(CreateKeysPage(book_), "Key bindings");
+    book_->AddPage(CreateGraphicsPage(book_), "Graphics");
     auto* all = new wxBoxSizer(wxVERTICAL);
     all->Add(book_, 1, wxEXPAND);
     SetSizer(all);
@@ -114,6 +200,7 @@ LauncherFrame::LauncherFrame()
     fullscreen_->SetValue(settings::GetInt(SECTION, "Fullscreen", 0) != 0);
     sound_->SetValue(settings::GetInt(SECTION, "Sound", 1) != 0);
     ShowEditedKeys();
+    ShowGraphics(graphics_);
     loading_ = false;
     UpdateState();
 
@@ -223,7 +310,7 @@ wxWindow* LauncherFrame::CreateKeysPage(wxWindow* parent) {
     auto* page = new wxPanel(parent);
     const int margin = FromDIP(12), gap = FromDIP(8), small = FromDIP(4);
 
-    auto* heading = new wxStaticText(page, wxID_ANY, "Key Bindings");
+    auto* heading = new wxStaticText(page, wxID_ANY, "Key bindings");
     heading->SetFont(GetFont().Bold().Scaled(1.2f));
     auto* intro = GreyText(page, "Click a key to change it. Keys are the keyboard's places, whatever its layout. "
                                  "A connected gamepad acts as the joystick.");
@@ -282,9 +369,9 @@ wxWindow* LauncherFrame::CreateKeysPage(wxWindow* parent) {
     apply->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
         bindings_ = edited_;
         keys::Save(bindings_);
-        CloseKeyBindings();
+        ClosePage();
     });
-    cancel->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { CloseKeyBindings(); });
+    cancel->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { ClosePage(); });
 
     auto* all = new wxBoxSizer(wxVERTICAL);
     all->Add(heading, 0, wxLEFT | wxRIGHT | wxTOP, margin);
@@ -295,17 +382,104 @@ wxWindow* LauncherFrame::CreateKeysPage(wxWindow* parent) {
     return page;
 }
 
+wxWindow* LauncherFrame::CreateGraphicsPage(wxWindow* parent) {
+    auto* page = new wxPanel(parent);
+    const int margin = FromDIP(12), gap = FromDIP(8), small = FromDIP(4);
+
+    auto* heading = new wxStaticText(page, wxID_ANY, "Graphics");
+    heading->SetFont(GetFont().Bold().Scaled(1.2f));
+    auto* intro = GreyText(page, "Settings of the enhanced view. They take effect the next time the game starts.");
+
+    // Ground dots
+    auto* dotsBox = new wxStaticBoxSizer(wxVERTICAL, page, "Ground proximity dots");
+    wxWindow* db = dotsBox->GetStaticBox();
+    dotsBox->Add(GreyText(db, "Near the ground the game draws a grid of dots on it, so that height and speed\n"
+                              "can be judged over the sea."),
+                 0, wxLEFT | wxRIGHT | wxTOP, gap);
+    smoothDots_ = new wxCheckBox(db, wxID_ANY, "&Smooth ground dots (drawn at the display's frame rate)");
+    smoothDots_->SetToolTip("On: the enhanced view draws the dots itself at every displayed frame, moving with "
+                            "the view, with the settings below. Off: the original's one-pixel "
+                            "dots, moved only at the game's own frame rate, out to about 4 cells and below 4000.");
+    dotsBox->Add(smoothDots_, 0, wxLEFT | wxRIGHT | wxTOP, gap);
+    auto* grid = new wxFlexGridSizer(4, small, gap);
+    grid->AddGrowableCol(1);
+    for (const DotValue& d : DOT_VALUES) {
+        wxSlider* slider;
+        wxSpinCtrl* field;
+        SliderRow(db, grid, d.label, d.note, d.tip, d.min, d.max, d.step, &slider, &field);
+        dotSliders_.push_back(slider);
+        dotFields_.push_back(field);
+    }
+    dotsBox->Add(grid, 0, wxEXPAND | wxALL, gap);
+    smoothDots_->Bind(wxEVT_CHECKBOX, [this](wxCommandEvent&) { UpdateGraphicsState(); });
+
+    auto* buttons = new wxBoxSizer(wxHORIZONTAL);
+    auto* defaults = new wxButton(page, wxID_ANY, "&Default");
+    defaults->SetToolTip("Put every setting back to its default.");
+    auto* apply = new wxButton(page, wxID_APPLY, "&Apply");
+    apply->SetToolTip("Keep these settings and go back.");
+    auto* cancel = new wxButton(page, wxID_CANCEL, "Cancel");
+    cancel->SetToolTip("Go back without changing the settings.");
+    buttons->Add(defaults);
+    buttons->AddStretchSpacer();
+    buttons->Add(apply, 0, wxRIGHT, gap);
+    buttons->Add(cancel);
+    defaults->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { ShowGraphics(Graphics()); });
+    apply->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+        graphics_ = EditedGraphics();
+        settings::SetInt(GRAPHICS, "SmoothGroundDots", graphics_.smoothDots ? 1 : 0);
+        for (const DotValue& d : DOT_VALUES) settings::SetInt(GRAPHICS, d.key, graphics_.*d.field);
+        ClosePage();
+    });
+    cancel->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { ClosePage(); });
+
+    auto* all = new wxBoxSizer(wxVERTICAL);
+    all->Add(heading, 0, wxLEFT | wxRIGHT | wxTOP, margin);
+    all->Add(intro, 0, wxLEFT | wxRIGHT | wxTOP, small);
+    all->Add(dotsBox, 1, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, margin);
+    all->Add(buttons, 0, wxEXPAND | wxALL, margin);
+    page->SetSizer(all);
+    return page;
+}
+
+void LauncherFrame::ShowGraphics(const Graphics& g) {
+    smoothDots_->SetValue(g.smoothDots);
+    for (int i = 0; i < DOT_VALUE_COUNT; ++i) {
+        dotFields_[i]->SetValue(g.*DOT_VALUES[i].field);
+        dotSliders_[i]->SetValue(g.*DOT_VALUES[i].field);
+    }
+    UpdateGraphicsState();
+}
+
+Graphics LauncherFrame::EditedGraphics() const {
+    Graphics g;
+    g.smoothDots = smoothDots_->GetValue();
+    // The sliders have the numbers as typed, even while a field hasn't taken its number yet.
+    for (int i = 0; i < DOT_VALUE_COUNT; ++i) g.*DOT_VALUES[i].field = dotSliders_[i]->GetValue();
+    return g;
+}
+
+// The values are for the smooth dots only.
+void LauncherFrame::UpdateGraphicsState() {
+    const bool on = smoothDots_->GetValue();
+    for (int i = 0; i < DOT_VALUE_COUNT; ++i) {
+        dotSliders_[i]->Enable(on);
+        dotFields_[i]->Enable(on);
+    }
+}
+
 void LauncherFrame::CreateMenus() {
     auto* file = new wxMenu;
     file->Append(wxID_PREFERENCES, wxString::FromUTF8("&Preferences…"));
     file->AppendSeparator();
     file->Append(wxID_EXIT, "E&xit\tAlt+F4");
     auto* settingsMenu = new wxMenu;
-    settingsMenu->Append(ID_KEY_BINDINGS, wxString::FromUTF8("&Key Bindings…"));
+    settingsMenu->Append(ID_KEY_BINDINGS, wxString::FromUTF8("&Key bindings…"));
+    settingsMenu->Append(ID_GRAPHICS, wxString::FromUTF8("&Graphics…"));
 
     auto* bar = new wxMenuBar;
     bar->Append(file, "&File");
-    bar->Append(settingsMenu, "&Settings");
+    bar->Append(settingsMenu, "&Game settings");
 #ifndef __WXMSW__
     auto* about = new wxMenu;
     about->Append(ID_ABOUT, wxString::FromUTF8("&About ") + APP_TITLE + wxString::FromUTF8("…"));
@@ -322,7 +496,8 @@ void LauncherFrame::CreateMenus() {
 
     Bind(wxEVT_MENU, [this](wxCommandEvent&) { Close(); }, wxID_EXIT);
     Bind(wxEVT_MENU, [this](wxCommandEvent&) { Preferences(); }, wxID_PREFERENCES);
-    Bind(wxEVT_MENU, [this](wxCommandEvent&) { OpenKeyBindings(); }, ID_KEY_BINDINGS);
+    Bind(wxEVT_MENU, [this](wxCommandEvent&) { OpenPage(PAGE_KEYS); }, ID_KEY_BINDINGS);
+    Bind(wxEVT_MENU, [this](wxCommandEvent&) { OpenPage(PAGE_GRAPHICS); }, ID_GRAPHICS);
     Bind(wxEVT_MENU, [this](wxCommandEvent&) { About(); }, ID_ABOUT);
 }
 
@@ -391,6 +566,7 @@ void LauncherFrame::Play() {
     options.fullscreen = fullscreen_->GetValue();
     options.sound = sound_->GetValue();
     options.keys = keys::Argument(bindings_);
+    options.graphics = graphics_;
     wxString error;
     if (!LaunchGame(options, error)) wxMessageBox(error, APP_TITLE, wxOK | wxICON_ERROR, this);
 }
@@ -453,24 +629,32 @@ void LauncherFrame::ShowEditedKeys() {
         if (edited_[i] != keys::ACTIONS[i].def) font.MakeBold();
         keyButtons_[i]->SetFont(font);
     }
-    book_->GetPage(1)->Layout();
+    book_->GetPage(PAGE_KEYS)->Layout();
 }
 
-void LauncherFrame::OpenKeyBindings() {
-    if (book_->GetSelection() == 1) return;
-    edited_ = bindings_;
-    ShowEditedKeys();
-    book_->ChangeSelection(1);
+// A settings page starts from the saved settings; the menu's pages wait until it is closed.
+void LauncherFrame::OpenPage(int page) {
+    if (book_->GetSelection() == page) return;
+    if (page == PAGE_KEYS) {
+        edited_ = bindings_;
+        ShowEditedKeys();
+    } else {
+        ShowGraphics(graphics_);
+    }
+    book_->ChangeSelection(page);
     FitPage();
     GetMenuBar()->Enable(ID_KEY_BINDINGS, false);
-    SetDefaultItem(FindWindow(wxID_APPLY));
-    keyButtons_.front()->SetFocus();
+    GetMenuBar()->Enable(ID_GRAPHICS, false);
+    SetDefaultItem(book_->GetPage(page)->FindWindow(wxID_APPLY));
+    if (page == PAGE_KEYS) keyButtons_.front()->SetFocus();
+    else smoothDots_->SetFocus();
 }
 
-void LauncherFrame::CloseKeyBindings() {
-    book_->ChangeSelection(0);
+void LauncherFrame::ClosePage() {
+    book_->ChangeSelection(PAGE_MAIN);
     FitPage();
     GetMenuBar()->Enable(ID_KEY_BINDINGS, true);
+    GetMenuBar()->Enable(ID_GRAPHICS, true);
     SetDefaultItem(play_);
     play_->SetFocus();
 }
@@ -485,7 +669,7 @@ void LauncherFrame::ChangeKey(int action) {
             const wxString question = wxString::Format(
                 "%s is already the key for %s.\n\nUse it for %s instead? %s will have no key.", keys::Name(key),
                 keys::ACTIONS[other].label, label, keys::ACTIONS[other].label);
-            if (wxMessageBox(question, "Key Bindings", wxYES_NO | wxICON_QUESTION, this) != wxYES) return;
+            if (wxMessageBox(question, "Key bindings", wxYES_NO | wxICON_QUESTION, this) != wxYES) return;
             edited_[other] = 0;
         }
     }

@@ -83,6 +83,50 @@ static inline u32 enh_range(u32 r) { return enh_pass ? r * (u32)enh_view_dist : 
 bool enh_lod_finest(void);             /* ts_draw: take the last (finest) LOD */
 void enh_far_dot(bool inside);         /* scene.c draw_object around far_dot_draw: the dot is world */
 
+/* ---- ground dots (render3d/effects.c ground_speed_dots) --------------------------------------------- *
+ * The original draws a 9 x 9 grid of one-pixel dots on the ground (1024 units apart) below 4000 units of
+ * altitude, into the sim frame's picture. With the host dots on, the host renderer draws them itself at
+ * every displayed frame from the interpolated camera, out to `range` grid cells, up to `alt` units of
+ * altitude, `size` percent of an original pixel wide; the original's dot pixels are then tagged world. */
+#define ENH_DEFAULT_DOTS_RANGE 12
+#define ENH_MAX_DOTS_RANGE     64
+#define ENH_DEFAULT_DOTS_ALT   8000
+#define ENH_MAX_DOTS_ALT       30000
+#define ENH_DEFAULT_DOTS_SIZE  100
+#define ENH_MAX_DOTS_SIZE      400
+#define ENH_DEFAULT_DOTS_FULL  4096    /* eye distance from which a dot has its full size */
+#define ENH_MAX_DOTS_FULL      16384
+#define ENH_DEFAULT_DOTS_NEAR  25      /* the size up close, percent of the full size */
+#define ENH_DEFAULT_DOTS_SCATTER 40    /* each dot moved from its grid point by up to this % of half a cell */
+#define ENH_DEFAULT_DOTS_FAR   2       /* the spacing halves this many times out to the range's edge */
+#define ENH_MAX_DOTS_FAR       3
+#define ENH_DEFAULT_DOTS_FADE  60      /* the dots fade out from this % of the range to its edge */
+#define ENH_DEFAULT_DOTS_SPECKLE 3     /* beyond the range: a speckle over this % of the ground */
+#define ENH_MAX_DOTS_SPECKLE   40
+#define ENH_DEFAULT_DOTS_FAR_BRIGHT 60 /* the far speckle and crests: % of the dots' colour over the ground */
+#define ENH_DEFAULT_DOTS_EDGE  35      /* beyond the full-size distance the dots shrink to this % at the edge */
+#define ENH_DEFAULT_DOTS_COVER 8       /* the dots are thinned to cover at most this % of the ground */
+#define ENH_MAX_DOTS_COVER     50
+/* full, near: dots nearer than `full` units shrink with the distance, down to `near` % of their size;
+ * scatter: the dots are moved (the same way at every frame) off the straight rows of the grid;
+ * far: the dots get denser with the distance, their spacing halved `far` times at the range's edge;
+ * fade: the dots fade out from `fade` % of the range to its edge;
+ * speckle: beyond the range, out to the horizon, a faint speckle over `speckle` % of the ground;
+ * far_bright: the far dots fade into the ground, but for some "crests" which, as the speckle, keep
+ * `far_bright` % of the dots' colour;
+ * edge: beyond `full` the dots shrink again with the distance, to `edge` % of the size at the range's edge;
+ * cover: where the dots would crowd together, some are skipped so they cover at most `cover` % of it */
+void enh_init_dots(bool on, int range, int alt, int size, int full, int near, int scatter, int far, int fade,
+                   int speckle, int far_bright, int edge, int cover);
+/* ground_speed_dots, before its altitude test: records the dots' place in the frame (after the ground
+ * layer) and their colour table (0x88 bytes: the colour under the dot -> the dot's colour). True = the
+ * host draws the dots: the original's pixels are to be tagged world. */
+bool enh_ground_dots(const u8 *col);
+/* debug overlay of the dots (--dots-debug, Ctrl+Alt+G toggles it): the ground grid of the dots, green
+ * along the view, yellow across it, out to the range's edge (thinned out where they would be under 3
+ * pixels apart), cyan rings where the dots start fading out and at the range's edge, the horizon red */
+extern bool enh_dots_debug;
+
 /* ---- key bindings and the flaps keys (enh_keys.c) --------------------------------------------------- *
  * A key is an XT set-1 make code, ENH_KEY_GREY = sent after an E0 prefix, with the modifiers held with
  * it. The flaps up / down keys reach AP as two scancodes no keyboard sends (no ASCII, no direction

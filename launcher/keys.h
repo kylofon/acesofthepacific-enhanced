@@ -1,4 +1,4 @@
-// keys.h -- the game's keys that can be changed (Settings > Key Bindings), kept in settings.ini and
+// keys.h -- the game's keys that can be changed (Game settings > Key bindings), kept in settings.ini and
 // handed to the game with --keys.
 //
 // A key is an XT make code (the PC keyboard's own code, as the game reads it), GREY for the keys sent

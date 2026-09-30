@@ -22,6 +22,14 @@ bool enh_pass;
 int enh_view_dist = 1;
 bool enh_haze;
 static bool lod_on, pass_on;
+/* ground dots */
+static bool dots_on;
+int enh_dots_range = ENH_DEFAULT_DOTS_RANGE, enh_dots_alt = ENH_DEFAULT_DOTS_ALT, enh_dots_size = ENH_DEFAULT_DOTS_SIZE;
+int enh_dots_full = ENH_DEFAULT_DOTS_FULL, enh_dots_near = ENH_DEFAULT_DOTS_NEAR, enh_dots_scatter = ENH_DEFAULT_DOTS_SCATTER;
+int enh_dots_far = ENH_DEFAULT_DOTS_FAR, enh_dots_fade = ENH_DEFAULT_DOTS_FADE, enh_dots_speckle = ENH_DEFAULT_DOTS_SPECKLE;
+int enh_dots_far_bright = ENH_DEFAULT_DOTS_FAR_BRIGHT;
+int enh_dots_edge = ENH_DEFAULT_DOTS_EDGE, enh_dots_cover = ENH_DEFAULT_DOTS_COVER;
+bool enh_dots_debug;
 static ESnap *last_main;               /* the snapshot of AP's own pass, re-captured by the enhanced pass */
 static u8 save_mem[MEM_SIZE], save_vram[VGA_VRAM_SIZE], save_tag[VGA_VRAM_SIZE];
 static u16 save_sp;
@@ -69,6 +77,26 @@ void enh_init_stage2(int view_dist, bool lod, bool haze)
     lod_on = enabled && lod;
     enh_haze = enabled && haze;
     pass_on = enabled && (enh_view_dist > 1 || lod_on);
+}
+
+static int clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+void enh_init_dots(bool on, int range, int alt, int size, int full, int near, int scatter, int far, int fade,
+                   int speckle, int far_bright, int edge, int cover)
+{
+    dots_on = enabled && on;
+    enh_dots_range = clampi(range, 1, ENH_MAX_DOTS_RANGE);
+    enh_dots_alt = clampi(alt, 0, ENH_MAX_DOTS_ALT);
+    enh_dots_size = clampi(size, 10, ENH_MAX_DOTS_SIZE);
+    enh_dots_full = clampi(full, 0, ENH_MAX_DOTS_FULL);
+    enh_dots_near = clampi(near, 5, 100);
+    enh_dots_scatter = clampi(scatter, 0, 100);
+    enh_dots_far = clampi(far, 0, ENH_MAX_DOTS_FAR);
+    enh_dots_fade = clampi(fade, 0, 100);
+    enh_dots_speckle = clampi(speckle, 0, ENH_MAX_DOTS_SPECKLE);
+    enh_dots_far_bright = clampi(far_bright, 0, 100);
+    enh_dots_edge = clampi(edge, 5, 100);
+    enh_dots_cover = clampi(cover, 1, ENH_MAX_DOTS_COVER);
 }
 
 bool enh_enabled(void) { return enabled; }
@@ -195,6 +223,7 @@ void enh_scene_begin(void)
     s->f = (double)KW(CS_FOCAL);
     s->near_d = s->f / 8.0;                               /* draw_object: set_near(n - 3) */
     s->has_sky = false;
+    s->dots = false;
     s->npoly = s->nvert = s->nobj = 0;
     cur = s;
     cur_key = 0;
@@ -262,6 +291,15 @@ void enh_far_dot(bool inside)
 {
     /* AP's own pass: with the enhanced pass on, the aircraft behind a far dot is drawn as a model there */
     if (capturing() && !enh_pass && pass_on) enh_vclass = inside ? ENH_TAG_WORLD : ENH_TAG_SCENE;
+}
+
+bool enh_ground_dots(const u8 *col)
+{
+    if (!capturing() || !dots_on) return false;
+    cur->dots = true;
+    cur->dots_at = cur->npoly;
+    memcpy(cur->dot_col, col, sizeof cur->dot_col);
+    return true;
 }
 
 /* horizon.c: H_SPACING 031A, H_BANDS 031C, H_STEP 031E, H_ON 0320 (render3d_sky.md §2) */
