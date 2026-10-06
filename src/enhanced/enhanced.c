@@ -30,6 +30,8 @@ int enh_dots_far = ENH_DEFAULT_DOTS_FAR, enh_dots_fade = ENH_DEFAULT_DOTS_FADE, 
 int enh_dots_far_bright = ENH_DEFAULT_DOTS_FAR_BRIGHT;
 int enh_dots_edge = ENH_DEFAULT_DOTS_EDGE, enh_dots_cover = ENH_DEFAULT_DOTS_COVER;
 bool enh_dots_debug;
+static double plane_scale = 1.0;      /* --plane-size / 100 */
+int enh_hitbox_size = 100;
 static ESnap *last_main;               /* the snapshot of AP's own pass, re-captured by the enhanced pass */
 static u8 save_mem[MEM_SIZE], save_vram[VGA_VRAM_SIZE], save_tag[VGA_VRAM_SIZE];
 static u16 save_sp;
@@ -44,6 +46,7 @@ static u32 snap_seq;
 static ESnap *cur;                     /* the snapshot being captured (inside render_scene) */
 static u32 cur_key;                    /* draw_object's object */
 static s32 cur_obj = -1;
+static bool cur_aircraft;              /* draw_object's object is an aircraft */
 static double cur_eye_scale = 1.0;
 static double cur_R[9];
 static bool tr_on;                     /* enh_tracer */
@@ -80,6 +83,13 @@ void enh_init_stage2(int view_dist, bool lod, bool haze)
 }
 
 static int clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+void enh_init_planes(int size, int hitbox)
+{
+    /* larger than 100 % would be cut off at the edge of the original's (world-tagged) model */
+    plane_scale = enabled ? clampi(size, ENH_MIN_PLANE_SIZE, 100) / 100.0 : 1.0;
+    enh_hitbox_size = enabled ? clampi(hitbox, ENH_MIN_HITBOX_SIZE, ENH_MAX_HITBOX_SIZE) : 100;
+}
 
 void enh_init_dots(bool on, int range, int alt, int size, int full, int near, int scatter, int far, int fade,
                    int speckle, int far_bright, int edge, int cover)
@@ -228,6 +238,7 @@ void enh_scene_begin(void)
     cur = s;
     cur_key = 0;
     cur_obj = -1;
+    cur_aircraft = false;
     cur_eye_scale = 1.0;
     enh_vclass = ENH_TAG_SCENE;
 }
@@ -327,11 +338,12 @@ void enh_sky_callback(bool inside)
     if (capturing()) enh_vclass = inside ? ENH_TAG_SCENE : ENH_TAG_WORLD;
 }
 
-void enh_object(u32 key)
+void enh_object(u32 key, bool aircraft)
 {
     if (!capturing()) return;
     cur_key = key;
     cur_obj = -1;
+    cur_aircraft = aircraft;
 }
 
 void enh_tracer(bool on, s16 bx, s16 by, s16 bz)
@@ -416,6 +428,15 @@ void enh_poly_fill(void)
     p->fill_on = DRV_FILL_ON;
     p->fill = DRV_FILL_COL;
     p->edge = DRV_EDGE_COL;
+    if (cur_aircraft && plane_scale != 1.0 && cur_obj >= 0) {   /* --plane-size: about the model's origin */
+        const double *op = cur->obj[cur_obj].pos;
+        double c[3] = { op[0] - cur->cam[0], op[1] - cur->cam[1], op[2] - cur->cam[2] };
+        for (u16 i = 0; i < pend_n; i++) {
+            pend_v[i].x = (float)(c[0] + (pend_v[i].x - c[0]) * plane_scale);
+            pend_v[i].y = (float)(c[1] + (pend_v[i].y - c[1]) * plane_scale);
+            pend_v[i].z = (float)(c[2] + (pend_v[i].z - c[2]) * plane_scale);
+        }
+    }
     memcpy(cur->vert + cur->nvert, pend_v, sizeof(EV3) * pend_n);
     cur->nvert += pend_n;
 }

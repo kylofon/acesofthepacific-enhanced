@@ -70,6 +70,14 @@ bool LaunchGame(const GameOptions& o, wxString& error) {
                                  "--dots-edge", wxString::Format("%d", o.graphics.dotsEdge),
                                  "--dots-cover", wxString::Format("%d", o.graphics.dotsCover)});
     }
+    if (o.debug.planeSize != 100) {
+        args.push_back("--plane-size");
+        args.push_back(wxString::Format("%d", o.debug.planeSize));
+    }
+    if (o.debug.hitboxSize != 100) {
+        args.push_back("--hitbox-size");
+        args.push_back(wxString::Format("%d", o.debug.hitboxSize));
+    }
     if (!o.keys.empty()) {
         args.push_back("--keys");
         args.push_back(o.keys);

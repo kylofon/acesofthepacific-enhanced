@@ -32,6 +32,8 @@
  *   --dots-edge    ENH: beyond the full-size distance dots shrink to N % at the range's edge (default 35)
  *   --dots-cover   ENH: crowded dots are skipped to cover at most N % of the ground (default 8, 1..50)
  *   --dots-debug   ENH: start with the dots' debug overlay on (Ctrl+Alt+G toggles it)
+ *   --plane-size   ENH (debug): aircraft models at N % of their size (default 100, 10..100; 42 = true scale)
+ *   --hitbox-size  ENH (debug): aircraft hit boxes against weapons at N % (default 100, 10..400)
  *                  (default 2, 0..3; 0 = even spacing as the original)
  *   --keys         ENH: key bindings, "name=code,..." for the actions not on their default keys (the
  *                  launcher's Game settings > Key bindings; enhanced/enh_keys.c). With the enhancements on,
@@ -72,7 +74,8 @@ static int usage(const char *prog)
             "          [--no-lod-enh] [--no-haze-enh] [--no-dots-enh] [--dots-range N] [--dots-alt N]\n"
             "          [--dots-size N] [--dots-full N] [--dots-near N] [--dots-scatter N]\n"
             "          [--dots-far N] [--dots-fade N] [--dots-speckle N] [--dots-far-bright N]\n"
-            "          [--dots-edge N] [--dots-cover N] [--dots-debug] [--keys NAME=CODE,...]\n", prog);
+            "          [--dots-edge N] [--dots-cover N] [--dots-debug] [--plane-size N] [--hitbox-size N]\n"
+            "          [--keys NAME=CODE,...]\n", prog);
     return 2;
 }
 
@@ -92,6 +95,7 @@ int main(int argc, char **argv)
     int dots_far = ENH_DEFAULT_DOTS_FAR, dots_fade = ENH_DEFAULT_DOTS_FADE, dots_speckle = ENH_DEFAULT_DOTS_SPECKLE;
     int dots_far_bright = ENH_DEFAULT_DOTS_FAR_BRIGHT, dots_edge = ENH_DEFAULT_DOTS_EDGE;
     int dots_cover = ENH_DEFAULT_DOTS_COVER;
+    int plane_size = ENH_DEFAULT_PLANE_SIZE, hitbox_size = ENH_DEFAULT_HITBOX_SIZE;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
         if (!strcmp(a, "--game-dir") && v) { dir = v; i++; }
@@ -129,6 +133,8 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--dots-edge") && v) { dots_edge = atoi(v); i++; }
         else if (!strcmp(a, "--dots-cover") && v) { dots_cover = atoi(v); i++; }
         else if (!strcmp(a, "--dots-debug")) enh_dots_debug = true;
+        else if (!strcmp(a, "--plane-size") && v) { plane_size = atoi(v); i++; }
+        else if (!strcmp(a, "--hitbox-size") && v) { hitbox_size = atoi(v); i++; }
         else if (!strcmp(a, "--keys") && v) {
             if (!enh_keys_parse(v)) { fprintf(stderr, "bad --keys list: %s\n", v); return usage(argv[0]); }
             i++;
@@ -163,6 +169,7 @@ int main(int argc, char **argv)
     enh_init_dots(dots_enh, dots_range, dots_alt, dots_size, dots_full, dots_near, dots_scatter,
                   dots_far, dots_fade, dots_speckle, dots_far_bright,
                   dots_edge, dots_cover);   /* ENH */
+    enh_init_planes(plane_size, hitbox_size);        /* ENH */
     vga_init();               /* frame source, text mode */
     platform_init();          /* host tick / keyboard / mouse -> platform */
 

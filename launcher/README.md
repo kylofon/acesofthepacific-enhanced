@@ -47,10 +47,14 @@ platform's own controls, like the faithful port's launcher it is modelled on.
   **Scatter** (`--dots-scatter`, dots moved off the straight rows of the grid, default 40), each with a
   slider and a number field.
   **Default**, **Apply** and **Cancel** as on Key bindings.
+* **Debug > Aircraft size test** (tests, not part of the game as released): **Aircraft size**
+  (`--plane-size`, the aircraft drawn at this % of their size, 10..100, default 100; 42 = true scale) and
+  **Hit box size** (`--hitbox-size`, the aircraft's hit boxes against weapons at this % of the original's,
+  10..400, default 100). **Default**, **Apply** and **Cancel** as on Key bindings.
 * **About**: version, author and links.
 
 Everything is remembered in `%APPDATA%\Aces of the Pacific Enhanced\settings.ini`
-(`~/.config/aces-of-the-pacific-enhanced` on Linux), the keys under `[Keys]`, the Graphics page under `[Graphics]`. A folder or program left at its default is stored empty, so it follows the launcher if the whole
+(`~/.config/aces-of-the-pacific-enhanced` on Linux), the keys under `[Keys]`, the Graphics page under `[Graphics]`, the Debug page under `[Debug]`. A folder or program left at its default is stored empty, so it follows the launcher if the whole
 folder moves. Delete the file to go back to the defaults.
 
 ## Building
@@ -74,7 +78,7 @@ itself is linked in.
 ## Files
 
 * `app.cpp`: the wxWidgets application.
-* `launcher.h`, `launcher.cpp`: the window, its menus, Preferences, the Key bindings and Graphics pages and the About box.
+* `launcher.h`, `launcher.cpp`: the window, its menus, Preferences, the Key bindings, Graphics and Debug pages and the About box.
 * `keys.h`, `keys.cpp`: the game's keys that can be changed, their names and the "Press new key" prompt
   (the game's own list is `src/enhanced/enh_keys.c`).
 * `game.h`, `game.cpp`: the file checks and starting the game.

@@ -52,7 +52,7 @@ void enh_scene_end(void);              /* scene.c render_scene: end of the 3D fr
 void enh_sky(u16 sky, u16 sea);        /* horizon.c draw_sky: base colours (bands from the detail level) */
 void enh_sky_end(void);
 void enh_sky_callback(bool inside);    /* horizon.c call_cb: sun, moon, stars are not re-drawn */
-void enh_object(u32 key);              /* scene.c draw_object: identity of the object drawn (0 = none) */
+void enh_object(u32 key, bool aircraft); /* scene.c draw_object: identity of the object drawn (0 = none) */
 void enh_ts_object(u16 eye_shift);     /* ts_draw.c: an instance is set up; eye coordinates are >> eye_shift */
 /* weapons.c bullet_draw around its ts_draw: the tracer is drawn at the bullet's old position, back =
  * old - new (one sim step, world units). The host places it on that line at the view time instead of
@@ -118,6 +118,19 @@ void enh_far_dot(bool inside);         /* scene.c draw_object around far_dot_dra
  * cover: where the dots would crowd together, some are skipped so they cover at most `cover` % of it */
 void enh_init_dots(bool on, int range, int alt, int size, int full, int near, int scatter, int far, int fade,
                    int speckle, int far_bright, int edge, int cover);
+/* debug: aircraft size test. The models are about 2.4 times the real aircraft (an F4U is 388 units wide,
+ * 41 ft at 4 units a foot); 42 % = true scale.
+ * size (--plane-size): every aircraft model (class 3, with its shadow) drawn at `size` % of its size,
+ * about its own position, in the enhanced view only (the original's own picture is unchanged).
+ * hitbox (--hitbox-size): the aircraft's hit boxes against weapons (segment_hits_object) at `hitbox` %,
+ * after the original's own enlargement. Both 100 with --classic. */
+#define ENH_DEFAULT_PLANE_SIZE 100
+#define ENH_MIN_PLANE_SIZE     10
+#define ENH_DEFAULT_HITBOX_SIZE 100
+#define ENH_MIN_HITBOX_SIZE    10
+#define ENH_MAX_HITBOX_SIZE    400
+void enh_init_planes(int size, int hitbox);
+extern int enh_hitbox_size;            /* impacts.c: % of the aircraft hit boxes (100 = the original's) */
 /* ground_speed_dots, before its altitude test: records the dots' place in the frame (after the ground
  * layer) and their colour table (0x88 bytes: the colour under the dot -> the dot's colour). True = the
  * host draws the dots: the original's pixels are to be tagged world. */

@@ -4,6 +4,7 @@
 #include "sim_world/swa_priv.h"
 #include "codeptr.h"
 #include "prog.h"
+#include "enhanced/enhanced.h"   /* ENH: aircraft hit box size (debug) */
 
 #define LD3(a, b) ((s32)ldist3((a), (b)))
 
@@ -12,6 +13,7 @@ u16 lsub_far(u16 a, FarPtr b);           /* render3d 277a:50f4 (not in render3d.
 
 static FarPtr fp32(u32 v) { return far_make((u16)(v >> 16), (u16)v); }
 static FarPtr fx_cb(u16 off) { return far_make(SEG(0x3DFF), off); }   /* VROOMM stub entries of 655d */
+static bool enh_box_aircraft;            /* ENH: the next segment_hits_boxes tests an aircraft's boxes */
 
 /* ==== 1560 ======================================================================================= */
 
@@ -32,8 +34,10 @@ u16 segment_hits_object(u16 from, u32 to, u16 filter, FarPtr w, u16 dmg, u16 hit
         if (FW(w, 0x16) == o) continue;
         if (!obj_alive(o)) continue;
         u16 h;
+        enh_box_aircraft = si < DSS(0x4776);                  /* ENH: the planes come first in the list */
         if (OW(o, 0x24)) h = segment_hits_boxes(from, tc, OW(o, 0x20), (u16)(o + 4), OW(o, 0x24));
         else h = (u16)(o + 4);
+        enh_box_aircraft = false;                             /* ENH */
         if (!h) continue;
         if (obj_alive(o)) {
             memmove(far_mp(far_add(w, 4)), DSP(h), 12);
@@ -356,7 +360,10 @@ u16 segment_hits_boxes(u16 a, u16 b, u16 mblk, u16 pos, u16 bxl)
     memmove(DSP(A), DSP(a), 12);
     memmove(DSP(B), DSP(b), 12);
     u16 m = lmid(a, b);
-    u32 d1 = (u32)LD3(m, a) + DSL(bxl + 2);
+    s32 enh_pct = enh_box_aircraft ? enh_hitbox_size : 100;   /* ENH: --hitbox-size */
+    u32 enh_r = DSL(bxl + 2);
+    if (enh_pct > 100) enh_r = (u32)((u64)enh_r * (u32)enh_pct / 100);   /* ENH: the reach of larger boxes */
+    u32 d1 = (u32)LD3(m, a) + enh_r;
     if (d1 < (u32)LD3(m, pos)) { stk_release(mk); return 0; }
     lsub(A, pos);
     lsub(B, pos);
@@ -368,7 +375,7 @@ u16 segment_hits_boxes(u16 a, u16 b, u16 mblk, u16 pos, u16 bxl)
     l2v(vb, B);
     s16 enl = DSS(0x51FA);
     DSW(0x51FA) = 0;
-    if (n != 0 || enl != 0) {
+    if (n != 0 || enl != 0 || enh_pct != 100) {
         DSB(hdr) = DSB(bxl);
         DSB(hdr + 1) = DSB(bxl + 1);
         DSW(hdr + 6) = boxes;
@@ -384,6 +391,11 @@ u16 segment_hits_boxes(u16 a, u16 b, u16 mblk, u16 pos, u16 bxl)
                 vshl(si, (s16)(enl - 1));
                 vshl(di, (s16)(enl - 1));
             }
+            if (enh_pct != 100)                                 /* ENH: both corners, kept in 16 bits */
+                for (int k = 0; k < 12; k += 2) {
+                    s32 v = (s32)DSS(si + k) * enh_pct / 100;
+                    DSW(si + k) = (u16)(s16)(v > 32767 ? 32767 : v < -32768 ? -32768 : v);
+                }
         }
         bxl = hdr;
     }

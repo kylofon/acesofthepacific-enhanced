@@ -514,8 +514,8 @@ s16 sort_compare(const R3dCmp *c)
 /* AP 5440:0269 — the DS:36CC callback */
 void draw_object(FarPtr o)
 {
-    enh_object(far_lin(o));                                /* ENH: what follows belongs to this object */
     u16 f = rd16(o.seg, o.off), t = (u16)(f & 0x1F);
+    enh_object(far_lin(o), t == 3);                        /* ENH: what follows belongs to this object */
     u16 cnt = DSW(S_DRAW_COUNT); DSW(S_DRAW_COUNT)++;
     if (!(cnt & 1) && !enh_pass) vcr_poll_panel();         /* ENH: no input in the enhanced pass */
     if (t == 0x0F) parachute_draw(o);                      /* then continues below */
