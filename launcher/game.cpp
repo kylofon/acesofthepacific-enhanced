@@ -70,13 +70,13 @@ bool LaunchGame(const GameOptions& o, wxString& error) {
                                  "--dots-edge", wxString::Format("%d", o.graphics.dotsEdge),
                                  "--dots-cover", wxString::Format("%d", o.graphics.dotsCover)});
     }
-    if (o.debug.planeSize != 100) {
+    if (o.aircraft.planeSize != 100) {
         args.push_back("--plane-size");
-        args.push_back(wxString::Format("%d", o.debug.planeSize));
+        args.push_back(wxString::Format("%d", o.aircraft.planeSize));
     }
-    if (o.debug.hitboxSize != 100) {
+    if (o.aircraft.hitboxSize != 100) {
         args.push_back("--hitbox-size");
-        args.push_back(wxString::Format("%d", o.debug.hitboxSize));
+        args.push_back(wxString::Format("%d", o.aircraft.hitboxSize));
     }
     if (!o.keys.empty()) {
         args.push_back("--keys");

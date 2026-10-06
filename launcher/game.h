@@ -36,9 +36,9 @@ struct Graphics {
     int dotsCover = 8;       // crowded dots are skipped to cover at most this percent of the ground
 };
 
-// Debug: the aircraft size test (aotp --plane-size, --hitbox-size). The game's aircraft models are about
-// 2.4 times the real aircraft: 42 % is true scale.
-struct Debug {
+// Game settings > Aircraft size (aotp --plane-size, --hitbox-size). The game's aircraft models are 2.4
+// times larger than real life: 42 % is real-life size.
+struct AircraftSize {
     int planeSize = 100;   // aircraft drawn at this percent of their size (the picture only)
     int hitboxSize = 100;  // aircraft hit boxes against weapons at this percent of the original's
 };
@@ -53,7 +53,7 @@ struct GameOptions {
     bool sound = true;        // false: SDL_AUDIO_DRIVER=dummy
     wxString keys;            // --keys: the keys not on their defaults (keys::Argument)
     Graphics graphics;
-    Debug debug;
+    AircraftSize aircraft;
 };
 
 // Starts the game. On failure returns false and says why in `error`.

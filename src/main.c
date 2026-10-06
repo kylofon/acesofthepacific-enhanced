@@ -32,8 +32,8 @@
  *   --dots-edge    ENH: beyond the full-size distance dots shrink to N % at the range's edge (default 35)
  *   --dots-cover   ENH: crowded dots are skipped to cover at most N % of the ground (default 8, 1..50)
  *   --dots-debug   ENH: start with the dots' debug overlay on (Ctrl+Alt+G toggles it)
- *   --plane-size   ENH (debug): aircraft models at N % of their size (default 100, 10..100; 42 = true scale)
- *   --hitbox-size  ENH (debug): aircraft hit boxes against weapons at N % (default 100, 10..400)
+ *   --plane-size   ENH: aircraft models at N % of their size (default 100, 10..100; 42 = true scale)
+ *   --hitbox-size  ENH: aircraft hit boxes against weapons at N % (default 100, 10..400)
  *                  (default 2, 0..3; 0 = even spacing as the original)
  *   --keys         ENH: key bindings, "name=code,..." for the actions not on their default keys (the
  *                  launcher's Game settings > Key bindings; enhanced/enh_keys.c). With the enhancements on,

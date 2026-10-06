@@ -72,14 +72,14 @@ resolution, instead of scaling the 320×200 picture.
 - 2026-09-30: **ground dots at the display rate** (see "Ground dots" below); launcher menu Game settings
   with Key bindings and Graphics (the ground dots' settings).
 
-- 2026-10-06: **aircraft size test** (`--plane-size N`, `--hitbox-size N`; launcher Debug → Aircraft size
-  test). The aircraft
+- 2026-10-06: **aircraft size test** (`--plane-size N`, `--hitbox-size N`; launcher Game settings → Aircraft
+  size). The aircraft
   models are oversized: with the sim's ¼-ft world unit (altimeter, cruise altitudes, map miles) the
   finest LODs measure F4U 388 units (41 ft real → ×2.4), F6F 406, TBF 496, G4M 798, B-17 1000, B-29 1340
   (all ×2.3–2.4); ships ×2.6–3.1 (Essex 9041, Yamato 10590). Shape shift `s` is 0 for all of them, so
   this is in the model data, not the renderer (render3d_math.md §6). Hit boxes are enlarged too
   (`segment_hits_boxes`: player shots ×2 / ×1.5 / ×1 by the gunnery level `DS:42D2`, AI shots ×4). The
-  option scales only the enhanced view's polygons of class-3 objects (and their shadows) about the model's
+  option scales only the enhanced view's polygons of class-3 objects and the aircraft shadows (class 0Bh) about the model's
   origin, 10..100 % (42 = true scale); AI, the original's own picture and the chase-camera distance are
   unchanged. `--hitbox-size` (10..400 %) scales the aircraft's boxes in `segment_hits_boxes` when called
   from `segment_hits_object` for a plane (every shooter's bullets, cannon, rockets), after the original's

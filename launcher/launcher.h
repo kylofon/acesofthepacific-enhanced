@@ -1,6 +1,6 @@
 // launcher.h -- the launcher window: choose the game folder, the game's speed and the display and
-// sound options, then Play. Game settings > Key bindings and > Graphics, and Debug > Aircraft size test show
-// their page in the window.
+// sound options, then Play. Game settings > Key bindings, > Graphics and > Aircraft size show their page in
+// the window.
 #pragma once
 
 #include <wx/frame.h>
@@ -30,7 +30,7 @@ private:
     wxWindow* CreateMainPage(wxWindow* parent);
     wxWindow* CreateKeysPage(wxWindow* parent);
     wxWindow* CreateGraphicsPage(wxWindow* parent);
-    wxWindow* CreateDebugPage(wxWindow* parent);
+    wxWindow* CreateAircraftPage(wxWindow* parent);
     void CreateMenus();
 #ifdef __WXMSW__
     WXLRESULT MSWWindowProc(WXUINT msg, WXWPARAM wParam, WXLPARAM lParam) override;
@@ -59,9 +59,9 @@ private:
     void ShowGraphics(const Graphics& g);
     Graphics EditedGraphics() const;
     void UpdateGraphicsState();
-    // Debug: the controls from / to a Debug.
-    void ShowDebug(const Debug& d);
-    Debug EditedDebug() const;
+    // Aircraft size: the controls from / to an AircraftSize.
+    void ShowAircraft(const AircraftSize& d);
+    AircraftSize EditedAircraft() const;
 
     wxSimplebook* book_ = nullptr;
     wxTextCtrl* folder_ = nullptr;
@@ -83,12 +83,12 @@ private:
     std::vector<wxSlider*> dotSliders_;
     std::vector<wxSpinCtrl*> dotFields_;
     Graphics graphics_;  // saved
-    // The Debug page: the aircraft size test.
+    // The Aircraft size page.
     wxSlider* planeSlider_ = nullptr;
     wxSpinCtrl* planeField_ = nullptr;
     wxSlider* hitboxSlider_ = nullptr;
     wxSpinCtrl* hitboxField_ = nullptr;
-    Debug debug_;  // saved
+    AircraftSize aircraft_;  // saved
     bool topmost_ = false;
     bool loading_ = true;  // no edits are recorded while the window is built
 };

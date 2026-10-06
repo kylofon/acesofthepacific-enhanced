@@ -118,9 +118,9 @@ void enh_far_dot(bool inside);         /* scene.c draw_object around far_dot_dra
  * cover: where the dots would crowd together, some are skipped so they cover at most `cover` % of it */
 void enh_init_dots(bool on, int range, int alt, int size, int full, int near, int scatter, int far, int fade,
                    int speckle, int far_bright, int edge, int cover);
-/* debug: aircraft size test. The models are about 2.4 times the real aircraft (an F4U is 388 units wide,
+/* aircraft size (launcher Game settings > Aircraft size). The models are about 2.4 times the real aircraft (an F4U is 388 units wide,
  * 41 ft at 4 units a foot); 42 % = true scale.
- * size (--plane-size): every aircraft model (class 3, with its shadow) drawn at `size` % of its size,
+ * size (--plane-size): every aircraft model (class 3) and shadow (class 0Bh) drawn at `size` % of its size,
  * about its own position, in the enhanced view only (the original's own picture is unchanged).
  * hitbox (--hitbox-size): the aircraft's hit boxes against weapons (segment_hits_object) at `hitbox` %,
  * after the original's own enlargement. Both 100 with --classic. */

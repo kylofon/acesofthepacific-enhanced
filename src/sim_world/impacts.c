@@ -4,7 +4,7 @@
 #include "sim_world/swa_priv.h"
 #include "codeptr.h"
 #include "prog.h"
-#include "enhanced/enhanced.h"   /* ENH: aircraft hit box size (debug) */
+#include "enhanced/enhanced.h"   /* ENH: aircraft hit box size */
 
 #define LD3(a, b) ((s32)ldist3((a), (b)))
 

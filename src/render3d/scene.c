@@ -515,7 +515,7 @@ s16 sort_compare(const R3dCmp *c)
 void draw_object(FarPtr o)
 {
     u16 f = rd16(o.seg, o.off), t = (u16)(f & 0x1F);
-    enh_object(far_lin(o), t == 3);                        /* ENH: what follows belongs to this object */
+    enh_object(far_lin(o), t == 3 || t == 0x0B);           /* ENH: this object's; 0Bh = aircraft shadow */
     u16 cnt = DSW(S_DRAW_COUNT); DSW(S_DRAW_COUNT)++;
     if (!(cnt & 1) && !enh_pass) vcr_poll_panel();         /* ENH: no input in the enhanced pass */
     if (t == 0x0F) parachute_draw(o);                      /* then continues below */

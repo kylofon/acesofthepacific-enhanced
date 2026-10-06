@@ -41,12 +41,12 @@ const char* const SUPPORT = "https://buymeacoffee.com/krzysztofkania";
 const char* const SECTION = "Game";
 
 const int ID_KEY_BINDINGS = wxID_HIGHEST + 1, ID_ABOUT = wxID_HIGHEST + 2, ID_GRAPHICS = wxID_HIGHEST + 3,
-          ID_DEBUG = wxID_HIGHEST + 4;
+          ID_AIRCRAFT = wxID_HIGHEST + 4;
 // The book's pages.
-const int PAGE_MAIN = 0, PAGE_KEYS = 1, PAGE_GRAPHICS = 2, PAGE_DEBUG = 3;
+const int PAGE_MAIN = 0, PAGE_KEYS = 1, PAGE_GRAPHICS = 2, PAGE_AIRCRAFT = 3;
 const char* const GRAPHICS = "Graphics";
-const char* const DEBUG_SECTION = "Debug";
-// Debug page limits (aotp --plane-size, --hitbox-size: src/enhanced/enhanced.h).
+const char* const AIRCRAFT_SECTION = "Aircraft";
+// Aircraft size page limits (aotp --plane-size, --hitbox-size: src/enhanced/enhanced.h).
 const int MIN_PLANE_SIZE = 10, MAX_PLANE_SIZE = 100, MIN_HITBOX_SIZE = 10, MAX_HITBOX_SIZE = 400;
 
 // The ground dots' values on the Graphics page: the settings.ini key, the field, the limits and the
@@ -180,17 +180,17 @@ LauncherFrame::LauncherFrame()
         int& v = graphics_.*d.field;
         v = wxMax(d.min, wxMin(d.max, settings::GetInt(GRAPHICS, d.key, v)));
     }
-    const int planeSize = settings::GetInt(DEBUG_SECTION, "AircraftSize", debug_.planeSize);
-    const int hitboxSize = settings::GetInt(DEBUG_SECTION, "HitBoxSize", debug_.hitboxSize);
-    debug_.planeSize = wxMax(MIN_PLANE_SIZE, wxMin(MAX_PLANE_SIZE, planeSize));
-    debug_.hitboxSize = wxMax(MIN_HITBOX_SIZE, wxMin(MAX_HITBOX_SIZE, hitboxSize));
+    const int planeSize = settings::GetInt(AIRCRAFT_SECTION, "AircraftSize", aircraft_.planeSize);
+    const int hitboxSize = settings::GetInt(AIRCRAFT_SECTION, "HitBoxSize", aircraft_.hitboxSize);
+    aircraft_.planeSize = wxMax(MIN_PLANE_SIZE, wxMin(MAX_PLANE_SIZE, planeSize));
+    aircraft_.hitboxSize = wxMax(MIN_HITBOX_SIZE, wxMin(MAX_HITBOX_SIZE, hitboxSize));
 
     // The launcher and, in its place while one is open, a settings page (PAGE_*).
     book_ = new wxSimplebook(this);
     book_->AddPage(CreateMainPage(book_), "Game");
     book_->AddPage(CreateKeysPage(book_), "Key bindings");
     book_->AddPage(CreateGraphicsPage(book_), "Graphics");
-    book_->AddPage(CreateDebugPage(book_), "Debug");
+    book_->AddPage(CreateAircraftPage(book_), "Aircraft size");
     auto* all = new wxBoxSizer(wxVERTICAL);
     all->Add(book_, 1, wxEXPAND);
     SetSizer(all);
@@ -210,7 +210,7 @@ LauncherFrame::LauncherFrame()
     sound_->SetValue(settings::GetInt(SECTION, "Sound", 1) != 0);
     ShowEditedKeys();
     ShowGraphics(graphics_);
-    ShowDebug(debug_);
+    ShowAircraft(aircraft_);
     loading_ = false;
     UpdateState();
 
@@ -452,34 +452,35 @@ wxWindow* LauncherFrame::CreateGraphicsPage(wxWindow* parent) {
     return page;
 }
 
-wxWindow* LauncherFrame::CreateDebugPage(wxWindow* parent) {
+wxWindow* LauncherFrame::CreateAircraftPage(wxWindow* parent) {
     auto* page = new wxPanel(parent);
     const int margin = FromDIP(12), gap = FromDIP(8), small = FromDIP(4);
 
-    auto* heading = new wxStaticText(page, wxID_ANY, "Debug");
+    auto* heading = new wxStaticText(page, wxID_ANY, "Aircraft size");
     heading->SetFont(GetFont().Bold().Scaled(1.2f));
-    auto* intro = GreyText(page, "Tests, not part of the game as released. They take effect the next time the game "
-                                 "starts.");
+    auto* intro = GreyText(page, "These settings take effect the next time the game starts.");
 
-    // Aircraft size test
-    auto* planesBox = new wxStaticBoxSizer(wxVERTICAL, page, "Aircraft size test");
+    auto* planesBox = new wxStaticBoxSizer(wxVERTICAL, page, "Aircraft");
     wxWindow* pb = planesBox->GetStaticBox();
-    planesBox->Add(GreyText(pb, "The game's aircraft models are about 2.4 times the size of the real aircraft\n"
-                                "(an F4U is 97 ft wide instead of 41): 42 % is true scale. To make them easier to\n"
-                                "hit, the original also enlarges the hit boxes: your bullets x1 to x2 by the\n"
-                                "gunnery level, the computer's x4. The hit box size applies on top of that."),
+    planesBox->Add(GreyText(pb, "The aircraft models are 2.4 times larger than real life by default."),
                    0, wxLEFT | wxRIGHT | wxTOP, gap);
-    auto* grid = new wxFlexGridSizer(4, small, gap);
-    grid->AddGrowableCol(1);
-    SliderRow(pb, grid, "A&ircraft size:", "% (42 = true scale)",
-              "Every aircraft is drawn at this percent of its size in the game, in the enhanced view. Only the "
-              "picture changes. 100 = as in the original.",
+    auto* sizeGrid = new wxFlexGridSizer(4, small, gap);
+    sizeGrid->AddGrowableCol(1);
+    SliderRow(pb, sizeGrid, "A&ircraft size:", "% (42 = real-life size)",
+              "Every aircraft and its shadow are drawn at this percent of their size in the game. "
+              "100 = as in the original.",
               MIN_PLANE_SIZE, MAX_PLANE_SIZE, 10, &planeSlider_, &planeField_);
-    SliderRow(pb, grid, "&Hit box size:", "% of the original's",
-              "The aircraft's hit boxes against bullets, cannon and rockets, at this percent of the original's "
-              "(after its own enlargement). Applies to everyone's shots. 100 = as in the original.",
+    planesBox->Add(sizeGrid, 0, wxEXPAND | wxALL, gap);
+    planesBox->Add(GreyText(pb, "How easy the aircraft are to hit with guns and rockets. Lower = harder to hit.\n"
+                                "Smaller aircraft with the same hit box are just as easy to hit as before."),
+                   0, wxLEFT | wxRIGHT, gap);
+    auto* hitGrid = new wxFlexGridSizer(4, small, gap);
+    hitGrid->AddGrowableCol(1);
+    SliderRow(pb, hitGrid, "&Hit box size:", "% (100 = as in the original)",
+              "The size of the area around each aircraft that a bullet or rocket must pass through to hit it. "
+              "100 = as in the original.",
               MIN_HITBOX_SIZE, MAX_HITBOX_SIZE, 10, &hitboxSlider_, &hitboxField_);
-    planesBox->Add(grid, 0, wxEXPAND | wxALL, gap);
+    planesBox->Add(hitGrid, 0, wxEXPAND | wxALL, gap);
 
     auto* buttons = new wxBoxSizer(wxHORIZONTAL);
     auto* defaults = new wxButton(page, wxID_ANY, "&Default");
@@ -492,11 +493,11 @@ wxWindow* LauncherFrame::CreateDebugPage(wxWindow* parent) {
     buttons->AddStretchSpacer();
     buttons->Add(apply, 0, wxRIGHT, gap);
     buttons->Add(cancel);
-    defaults->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { ShowDebug(Debug()); });
+    defaults->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { ShowAircraft(AircraftSize()); });
     apply->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
-        debug_ = EditedDebug();
-        settings::SetInt(DEBUG_SECTION, "AircraftSize", debug_.planeSize);
-        settings::SetInt(DEBUG_SECTION, "HitBoxSize", debug_.hitboxSize);
+        aircraft_ = EditedAircraft();
+        settings::SetInt(AIRCRAFT_SECTION, "AircraftSize", aircraft_.planeSize);
+        settings::SetInt(AIRCRAFT_SECTION, "HitBoxSize", aircraft_.hitboxSize);
         ClosePage();
     });
     cancel->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { ClosePage(); });
@@ -510,15 +511,15 @@ wxWindow* LauncherFrame::CreateDebugPage(wxWindow* parent) {
     return page;
 }
 
-void LauncherFrame::ShowDebug(const Debug& d) {
+void LauncherFrame::ShowAircraft(const AircraftSize& d) {
     planeField_->SetValue(d.planeSize);
     planeSlider_->SetValue(d.planeSize);
     hitboxField_->SetValue(d.hitboxSize);
     hitboxSlider_->SetValue(d.hitboxSize);
 }
 
-Debug LauncherFrame::EditedDebug() const {
-    Debug d;
+AircraftSize LauncherFrame::EditedAircraft() const {
+    AircraftSize d;
     // The sliders have the numbers as typed, even while a field hasn't taken its number yet.
     d.planeSize = planeSlider_->GetValue();
     d.hitboxSize = hitboxSlider_->GetValue();
@@ -559,13 +560,11 @@ void LauncherFrame::CreateMenus() {
     auto* settingsMenu = new wxMenu;
     settingsMenu->Append(ID_KEY_BINDINGS, wxString::FromUTF8("&Key bindings…"));
     settingsMenu->Append(ID_GRAPHICS, wxString::FromUTF8("&Graphics…"));
-    auto* debugMenu = new wxMenu;
-    debugMenu->Append(ID_DEBUG, wxString::FromUTF8("&Aircraft size test…"));
+    settingsMenu->Append(ID_AIRCRAFT, wxString::FromUTF8("&Aircraft size…"));
 
     auto* bar = new wxMenuBar;
     bar->Append(file, "&File");
     bar->Append(settingsMenu, "&Game settings");
-    bar->Append(debugMenu, "&Debug");
 #ifndef __WXMSW__
     auto* about = new wxMenu;
     about->Append(ID_ABOUT, wxString::FromUTF8("&About ") + APP_TITLE + wxString::FromUTF8("…"));
@@ -584,7 +583,7 @@ void LauncherFrame::CreateMenus() {
     Bind(wxEVT_MENU, [this](wxCommandEvent&) { Preferences(); }, wxID_PREFERENCES);
     Bind(wxEVT_MENU, [this](wxCommandEvent&) { OpenPage(PAGE_KEYS); }, ID_KEY_BINDINGS);
     Bind(wxEVT_MENU, [this](wxCommandEvent&) { OpenPage(PAGE_GRAPHICS); }, ID_GRAPHICS);
-    Bind(wxEVT_MENU, [this](wxCommandEvent&) { OpenPage(PAGE_DEBUG); }, ID_DEBUG);
+    Bind(wxEVT_MENU, [this](wxCommandEvent&) { OpenPage(PAGE_AIRCRAFT); }, ID_AIRCRAFT);
     Bind(wxEVT_MENU, [this](wxCommandEvent&) { About(); }, ID_ABOUT);
 }
 
@@ -654,7 +653,7 @@ void LauncherFrame::Play() {
     options.sound = sound_->GetValue();
     options.keys = keys::Argument(bindings_);
     options.graphics = graphics_;
-    options.debug = debug_;
+    options.aircraft = aircraft_;
     wxString error;
     if (!LaunchGame(options, error)) wxMessageBox(error, APP_TITLE, wxOK | wxICON_ERROR, this);
 }
@@ -726,8 +725,8 @@ void LauncherFrame::OpenPage(int page) {
     if (page == PAGE_KEYS) {
         edited_ = bindings_;
         ShowEditedKeys();
-    } else if (page == PAGE_DEBUG) {
-        ShowDebug(debug_);
+    } else if (page == PAGE_AIRCRAFT) {
+        ShowAircraft(aircraft_);
     } else {
         ShowGraphics(graphics_);
     }
@@ -735,10 +734,10 @@ void LauncherFrame::OpenPage(int page) {
     FitPage();
     GetMenuBar()->Enable(ID_KEY_BINDINGS, false);
     GetMenuBar()->Enable(ID_GRAPHICS, false);
-    GetMenuBar()->Enable(ID_DEBUG, false);
+    GetMenuBar()->Enable(ID_AIRCRAFT, false);
     SetDefaultItem(book_->GetPage(page)->FindWindow(wxID_APPLY));
     if (page == PAGE_KEYS) keyButtons_.front()->SetFocus();
-    else if (page == PAGE_DEBUG) planeSlider_->SetFocus();
+    else if (page == PAGE_AIRCRAFT) planeSlider_->SetFocus();
     else smoothDots_->SetFocus();
 }
 
@@ -747,7 +746,7 @@ void LauncherFrame::ClosePage() {
     FitPage();
     GetMenuBar()->Enable(ID_KEY_BINDINGS, true);
     GetMenuBar()->Enable(ID_GRAPHICS, true);
-    GetMenuBar()->Enable(ID_DEBUG, true);
+    GetMenuBar()->Enable(ID_AIRCRAFT, true);
     SetDefaultItem(play_);
     play_->SetFocus();
 }
