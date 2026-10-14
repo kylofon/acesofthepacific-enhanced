@@ -262,6 +262,7 @@ static void present(void)
 }
 
 static Uint64 last_present_ns;
+static bool repaint;  /* the window changed size or mode: present the unchanged frame again */
 
 /* the time between two presented frames: the display's refresh period less 1.5 ms (so VSync, not this
  * timer, decides), at least 4 ms; 60 Hz when the display does not say */
@@ -410,7 +411,8 @@ void host_pump(void)
         loop_prof_add(&lp_frame, pt);
         lp_nframe++;
         if (!built) snapshot_static();
-        else {
+        if (built || repaint) {
+            repaint = false;
             pt = SDL_GetTicksNS();
             present();
             loop_prof_add(&lp_present, pt);
@@ -570,6 +572,12 @@ static void process_events(void)
             break;
         case SDL_EVENT_KEY_UP:
             key_event(ev.key.scancode, false);
+            break;
+        case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:     /* Alt+Enter, resizing, a static picture: redraw it */
+        case SDL_EVENT_WINDOW_ENTER_FULLSCREEN:
+        case SDL_EVENT_WINDOW_LEAVE_FULLSCREEN:
+        case SDL_EVENT_WINDOW_EXPOSED:
+            repaint = true;
             break;
         case SDL_EVENT_WINDOW_FOCUS_LOST:
             if (focus_lost_handler) focus_lost_handler();
