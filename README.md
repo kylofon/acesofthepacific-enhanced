@@ -4,6 +4,12 @@ An enhanced native port of Dynamix's *Aces of the Pacific* (1992), built on the 
 [SDL3 port](https://github.com/kylofon/aces-of-the-pacific-sdl3). Not an emulator. The original game files are
 not included.
 
+> **Requires the CD-ROM version 1.2 of *Aces of the Pacific*** (it includes WWII: 1946). The floppy releases
+> (1.0, 1.01, 1.2 / Patch B and the 1946 expansion disk) don't run: they are separate builds of the game. The
+> launcher and the game say which version a folder holds.
+> A copy is at the [Internet Archive](https://archive.org/details/acesot-p): download `AcesotP.zip` and use the files of its
+> `AcesotP\DYNAMIX\AOTP` folder.
+
 ## Features
 
 * Smooth 3D view at your display's refresh rate.
@@ -16,18 +22,31 @@ not included.
 
 ## How to play (Windows)
 
-1. Put your installed DOS game files in a folder named `Game`.
-2. Place the program files next to it:
+1. Download `acesofthepacific-enhanced-…-win64.zip` from the
+   [releases](https://github.com/kylofon/acesofthepacific-enhanced/releases) and unzip it into a folder of its
+   own, for example `C:\Games\Aces of the Pacific Enhanced`. Not under Program Files: the game saves its pilot
+   roster, preferences and films there.
+2. Get the game's files. If you have the CD, install the game from it: it installs to `C:\DYNAMIX\AOTP`, and
+   that folder holds the files. Otherwise, from the Internet Archive:
+   1. Download `AcesotP.zip` (35 MB) from the [Internet Archive's page](https://archive.org/details/acesot-p)
+      (under DOWNLOAD OPTIONS), or [directly](https://archive.org/download/acesot-p/AcesotP.zip).
+   2. Open `AcesotP.zip` and go into the folder `AcesotP\DYNAMIX\AOTP`. It holds `INTRO.EXE`, `PS.EXE`,
+      `AP.EXE`, the `.DYN` files and the folders `TAPES`, `mt32` and `sb16`. The zip's other folders (`CD`,
+      with the disc image, and `SIERRA`) are not needed.
+3. In the folder from step 1, make a folder named `Game` and copy everything that is inside `AOTP` into it:
+   all its files and folders, not the `AOTP` folder itself. It should look like this:
 
    ```text
    Aces of the Pacific Enhanced\
-   ├── Game\                               <- your game files (INTRO.EXE, PS.EXE, AP.EXE, *.DYN, ...)
+   ├── Game\                               <- the files from AOTP (INTRO.EXE, PS.EXE, AP.EXE, *.DYN, ...)
    ├── Aces of the Pacific Enhanced.exe    <- the launcher
    ├── aotp-enhanced.exe                   <- the game
    └── SDL3.dll and the other DLLs
    ```
 
-3. Run `Aces of the Pacific Enhanced.exe`, pick your options and press **Play**.
+4. Run `Aces of the Pacific Enhanced.exe`, choose your options and press **Play**
+   (`aotp-enhanced.exe` also starts on its own with the defaults). If the launcher shows a warning, it says
+   what is wrong with the `Game` folder; clicking the warning sign opens the Internet Archive's page.
 
 * The folder must be writable (roster, preferences and films are saved in `Game`); not under Program Files.
 * Alt+Enter: full screen.
@@ -37,7 +56,9 @@ not included.
 ## Requirements
 
 * Game files: the installed DOS game (`INTRO.EXE`, `PS.EXE`, `AP.EXE`, `COMMON1.DYN`, `SHELL1.DYN`, `SIM1.DYN`,
-  `SIM2.DYN` and the rest of the folder).
+  `SIM2.DYN` and the rest of the folder) of the **CD-ROM version 1.2** (it includes WWII: 1946; the CD installs
+  to `C:\DYNAMIX\AOTP`). The floppy releases (1.0, 1.01, 1.2 / Patch B, the 1946 expansion disk) are separate
+  builds of the game and don't run; the launcher and the game say which one a folder holds.
 * A multi-core CPU for the default picture; lower `--res-scale` or `--aa` on slow machines.
 * To build: CMake 3.24+, C11, SDL 3; the launcher needs C++17 and wxWidgets 3.2.
 
@@ -85,7 +106,7 @@ cmake --build build
 | `--dots-far-bright N` | Far speckle and wave crests: N % of the dots' colour over the sea (default 60) |
 | `--dots-edge N` | Beyond the full-size distance, ground dots shrink to N % of their size at the range's edge (default 35) |
 | `--dots-cover N` | Crowded ground dots are skipped to cover at most N % of the ground (default 8, 1–50) |
-| `--dots-debug` | Start with the ground dots' debug overlay on (grid, range rings, horizon; Ctrl+Alt+G toggles it) |
+| `--dots-debug` | Start with the terrain wireframes on: the ground dots' grid, range rings and horizon (Ctrl+Alt+G cycles off / hit boxes / terrain) |
 | `--no-dots-enh` | Ground dots as the original's pixels, at the simulator's frame rate |
 | `--keys NAME=CODE,...` | Changed keys (written by the launcher's Key bindings) |
 | `--classic` | The original picture and behaviour |

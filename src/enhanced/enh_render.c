@@ -57,7 +57,12 @@ static double far_P[3], far_ax[3][3], far_ox, far_SA, far_r0, far_rmax, far_p;
 static u8 far_i;                       /* the far field's intensity (enh_dots_far_bright) */
 /* the camera of the rendered frame, for the dots' debug overlay (compose_band) */
 static struct { bool on; double P[3], ax[3][3], ox, cx, cy, f, r0, rmax; } dbg;
-static bool dbg_last;
+static int wire_last;
+/* the hit boxes' edges of the rendered frame (ENH_WIRE_HITBOX) in output pixels, drawn over the
+ * composed frame (draw_wire) */
+typedef struct { double x0, y0, x1, y1; u32 col; } WLine;
+static WLine *wl;
+static u32 nwl, cwl;
 
 /* per-object transforms of the current displayed frame: eye = d Â· A + b */
 typedef struct { double A[9], b[3]; } Xf;
@@ -880,10 +885,45 @@ static void draw_band(int b, void *ctx)
     }
 }
 
+/* The edges of the frame's hit boxes into wl[] (output pixels), each box moved with its object (xf[])
+ * and cut at the near plane. */
+static void project_boxes(const ESnap *n, const Xf *base, double ox, int S)
+{
+    for (u32 k = 0; k < n->nbox; k++) {
+        const EBox *bx = &n->box[k];
+        const Xf *t = bx->obj >= 0 && (u32)bx->obj < n->nobj ? &xf[bx->obj] : base;
+        double e[8][3];
+        for (int i = 0; i < 8; i++) {
+            double dv[3] = { bx->c[i].x, bx->c[i].y, bx->c[i].z };
+            vec_mat(dv, t->A, e[i]);
+            for (int a = 0; a < 3; a++) e[i][a] += t->b[a];
+        }
+        for (int a = 0; a < 8; a++)
+            for (int bit = 1; bit < 8; bit <<= 1) {
+                if (a & bit) continue;
+                double p0[3], p1[3];
+                memcpy(p0, e[a], sizeof p0);
+                memcpy(p1, e[a | bit], sizeof p1);
+                if (p0[1] < n->near_d && p1[1] < n->near_d) continue;
+                if (p0[1] < n->near_d || p1[1] < n->near_d) {
+                    double *q = p0[1] < n->near_d ? p0 : p1, *r = q == p0 ? p1 : p0;
+                    double u = (n->near_d - q[1]) / (r[1] - q[1]);
+                    for (int i = 0; i < 3; i++) q[i] += (r[i] - q[i]) * u;
+                }
+                wl = grow(wl, &cwl, nwl + 1, sizeof(WLine));
+                WLine *w = &wl[nwl++];
+                w->x0 = (n->cx + p0[0] * n->f / p0[1] + ox) * S; w->y0 = (n->cy - p0[2] * n->f / p0[1]) * S;
+                w->x1 = (n->cx + p1[0] * n->f / p1[1] + ox) * S; w->y1 = (n->cy - p1[2] * n->f / p1[1]) * S;
+                w->col = bx->friendly ? 0x00FF00 : 0xFF0000;
+            }
+    }
+}
+
 static void render(const ESnap *n, const ESnap *p, double x, int W, int H, double ox, const u8 *tag)
 {
     int S = enh_scale, AA = enh_aa;
     double SA = (double)(S * AA);
+    nwl = 0;
     ensure_sbuf(W * AA, H * AA);
     rx0 = (int)((n->wx1 + ox) * SA); rx1 = (int)((n->wx2 + 1 + ox) * SA);
     ry0 = (int)(n->wy1 * SA);        ry1 = (int)((n->wy2 + 1) * SA);
@@ -1015,7 +1055,8 @@ static void render(const ESnap *n, const ESnap *p, double x, int W, int H, doubl
 
     project_dots(n, P, Mt, ox, SA);
     dots_prim = 0;
-    dbg.on = enh_dots_debug;
+    if (enh_wire == ENH_WIRE_HITBOX) project_boxes(n, &base, ox, S);
+    dbg.on = enh_wire == ENH_WIRE_TERRAIN;
     memcpy(dbg.P, P, sizeof dbg.P);
     for (int k = 0; k < 3; k++) { dbg.ax[0][k] = Mt[3 * k]; dbg.ax[1][k] = Mt[3 * k + 1]; dbg.ax[2][k] = Mt[3 * k + 2]; }
     dbg.ox = ox; dbg.cx = n->cx; dbg.cy = n->cy; dbg.f = n->f;
@@ -1114,6 +1155,40 @@ typedef struct {
 } ComposeCtx;
 static void compose_band(int b, void *ctx);
 
+/* The hit boxes' edges (wl[]) over the composed frame, where it shows the world view: inside the 3D
+ * window, over pixels tagged world or on the widescreen sides. */
+static void draw_wire(const ComposeCtx *c)
+{
+    int S = enh_scale, lw = S >= 4 ? 2 : 1;
+    double X0 = c->rX0, X1 = c->rX1 - lw, Y0 = c->rY0, Y1 = c->rY1 - lw;
+    if (X1 < X0 || Y1 < Y0) return;
+    for (u32 i = 0; i < nwl; i++) {
+        const WLine *w = &wl[i];
+        /* Liang-Barsky against the window */
+        double dx = w->x1 - w->x0, dy = w->y1 - w->y0, t0 = 0, t1 = 1;
+        double pq[4][2] = { { -dx, w->x0 - X0 }, { dx, X1 - w->x0 }, { -dy, w->y0 - Y0 }, { dy, Y1 - w->y0 } };
+        bool out = false;
+        for (int k = 0; k < 4 && !out; k++) {
+            double p = pq[k][0], q = pq[k][1];
+            if (p == 0) { if (q < 0) out = true; continue; }
+            double r = q / p;
+            if (p < 0) { if (r > t1) out = true; else if (r > t0) t0 = r; }
+            else { if (r < t0) out = true; else if (r < t1) t1 = r; }
+        }
+        if (out) continue;
+        double ax = w->x0 + t0 * dx, ay = w->y0 + t0 * dy, bx = w->x0 + t1 * dx, by = w->y0 + t1 * dy;
+        int steps = (int)ceil(fmax(fabs(bx - ax), fabs(by - ay)));
+        for (int s = 0; s <= steps; s++) {
+            double u = steps ? (double)s / steps : 0;
+            int X = (int)(ax + (bx - ax) * u), Y = (int)(ay + (by - ay) * u);
+            int px = (X - c->x0) / S;
+            if (X >= c->x0 && px < 320 && c->tag[(Y / S) * 320 + px] != ENH_TAG_WORLD) continue;
+            for (int j = 0; j < lw; j++)
+                for (int k = 0; k < lw; k++) c->out[(size_t)(Y + j) * c->W + X + k] = w->col;
+        }
+    }
+}
+
 bool enh_compose(const u32 *pic, const u8 *tag, const u32 pal[256], u16 shown, bool changed, u32 *out)
 {
     u64 tc0 = host_ns();
@@ -1139,7 +1214,7 @@ bool enh_compose(const u32 *pic, const u8 *tag, const u32 pal[256], u16 shown, b
                 if (x < 0.0) x = 0.0;
             }
         } else p = NULL;
-        if (enh_dots_debug != dbg_last) { dbg_last = enh_dots_debug; changed = true; }
+        if (enh_wire != wire_last) { wire_last = enh_wire; changed = true; }
         if (!changed && last_active && x == last_x) return false;
         u64 tr0 = host_ns();
         render(n, x < 1.0 ? p : NULL, x, W, H, ox, tag);
@@ -1152,6 +1227,7 @@ bool enh_compose(const u32 *pic, const u8 *tag, const u32 pal[256], u16 shown, b
     ComposeCtx cc = { pic, tag, pal, out, W, H, x0, sw, active,
                       rx0 / AA, rx1 / AA, ry0 / AA, ry1 / AA };  /* rectangle in output pixels */
     host_parallel((H + BAND_ROWS - 1) / BAND_ROWS, compose_band, &cc);
+    if (active && nwl) draw_wire(&cc);
     u64 tq1 = host_ns();
     enh_prof(PROF_RESOLVE, tq1 - tq0);
     enh_prof(PROF_COMPOSE, tq1 - tc0);

@@ -11,6 +11,7 @@
 #include "mem.h"
 
 #include "host.h"
+#include "platform/platform.h"
 #include "render3d/r3d_priv.h"
 
 int enh_scale = 1, enh_aa = 1;
@@ -29,7 +30,7 @@ int enh_dots_full = ENH_DEFAULT_DOTS_FULL, enh_dots_near = ENH_DEFAULT_DOTS_NEAR
 int enh_dots_far = ENH_DEFAULT_DOTS_FAR, enh_dots_fade = ENH_DEFAULT_DOTS_FADE, enh_dots_speckle = ENH_DEFAULT_DOTS_SPECKLE;
 int enh_dots_far_bright = ENH_DEFAULT_DOTS_FAR_BRIGHT;
 int enh_dots_edge = ENH_DEFAULT_DOTS_EDGE, enh_dots_cover = ENH_DEFAULT_DOTS_COVER;
-bool enh_dots_debug;
+int enh_wire;
 static double plane_scale = 1.0;      /* --plane-size / 100 */
 int enh_hitbox_size = 100;
 static ESnap *last_main;               /* the snapshot of AP's own pass, re-captured by the enhanced pass */
@@ -206,6 +207,7 @@ void enh_orthonormalize(double M[9])
 }
 
 static bool capturing(void) { return cur != NULL; }
+static void capture_boxes(void);
 
 void enh_scene_begin(void)
 {
@@ -234,7 +236,7 @@ void enh_scene_begin(void)
     s->near_d = s->f / 8.0;                               /* draw_object: set_near(n - 3) */
     s->has_sky = false;
     s->dots = false;
-    s->npoly = s->nvert = s->nobj = 0;
+    s->npoly = s->nvert = s->nobj = s->nbox = 0;
     cur = s;
     cur_key = 0;
     cur_obj = -1;
@@ -246,6 +248,7 @@ void enh_scene_begin(void)
 void enh_scene_end(void)
 {
     if (!cur) return;
+    if (enh_wire == ENH_WIRE_HITBOX) capture_boxes();
     cur->complete = true;
     if (!enh_pass) { last_main = cur; enh_prof(PROF_SCENE, host_ns() - scene_t0); }
     cur = NULL;
@@ -444,4 +447,126 @@ void enh_poly_fill(void)
 void enh_poly_done(void)
 {
     if (capturing()) enh_vclass = ENH_TAG_SCENE;
+}
+
+/* ------------------------------------------------------------------------- hit boxes (ENH_WIRE_HITBOX) */
+
+#define SIM_PLAYER  0x3B09      /* the player's plane (near) */
+#define SIM_OBJS    0x475D      /* near ptr to the sim objects (near ptrs): the planes, then the ships */
+#define SIM_PLANES  0x4776
+#define SIM_N       0x4778
+#define GUN_LEVEL   0x42D2      /* weapons.c bullet_step: the player's bullets enlarge the boxes by 2 - it */
+#define GROUND_LIST 0x18B0      /* near ptr to the far ptrs of the ground objects near low aircraft */
+#define GROUND_N    0x18BA
+
+/* obj_alive (sim_world/objects.c) */
+static bool sim_alive(u16 o)
+{
+    if (DSB(o + 0x18) == 1) return DSB(o + 0x19) != 0;
+    return DSB(o + 0x18) == 0 && !(DSB(o + 0x1A) & 1) && !(DSB(o + 0x1B) & 1);
+}
+
+/* the object's local axes in world coordinates (rows: world = local · M), read from its matrix block as
+ * obj_matrix gives it, without filling the cache */
+static void obj_axes(u16 mb, double M[9])
+{
+    u8 m[0x14];
+    if (DSB(mb + 0x26) & 1) memcpy(m, DSP(mb), 0x13);
+    else r3d_mat_from_angles(DSP(DSW(mb + 0x28)), m);
+    mat_read(m, M);
+}
+
+/* the snapshot's object drawn for the sim object o (not its shadow), -1 = not drawn */
+static s32 snap_obj(u16 o)
+{
+    u32 key = far_lin(ds_ptr(o));
+    for (u32 i = 0; i < cur->nobj; i++) if (cur->obj[i].key == key) return (s32)i;
+    return -1;
+}
+
+/* a box lo..hi of an object at pos with the axes M (world = local · M + pos) */
+static void box_add(s32 obj, bool friendly, const double lo[3], const double hi[3], const double M[9],
+                    const double pos[3])
+{
+    cur->box = grow(cur->box, &cur->cbox, cur->nbox + 1, sizeof(EBox));
+    EBox *b = &cur->box[cur->nbox++];
+    b->obj = (s16)obj;
+    b->friendly = friendly;
+    for (int k = 0; k < 8; k++) {
+        double l[3] = { (k & 1) ? hi[0] : lo[0], (k & 2) ? hi[1] : lo[1], (k & 4) ? hi[2] : lo[2] }, w[3];
+        for (int j = 0; j < 3; j++) w[j] = pos[j] - cur->cam[j] + l[0] * M[j] + l[1] * M[3 + j] + l[2] * M[6 + j];
+        b->c[k].x = (float)w[0]; b->c[k].y = (float)w[1]; b->c[k].z = (float)w[2];
+    }
+}
+
+/* The header of shape `id` (n bytes) through the fast shape cache as shape_ptr finds it, read without
+ * mapping its EMS pool (shape_ptr would). False if it can't be read. */
+static bool shape_head(u16 id, u8 *out, u16 n)
+{
+    FarPtr fast = ds_far(DS_FAST_PTR);
+    if (far_is_null(fast) || id >= DSW(DS_TOTAL)) return false;
+    FarPtr t = ds_far(DS_FAST_TBL);
+    u16 r = (u16)(DSW(DS_TABLES) + 12 * (s16)(s8)rd8(t.seg, (u16)(t.off + id)));
+    FarPtr p = far_rd(fast.seg, (u16)(fast.off + 4 * id));
+    if (far_is_null(p)) return false;
+    if (DSW(r + 2) != 0) { memcpy(out, far_mp(p), n); return true; }      /* the table is not in a pool */
+    return pool_peek(DSW(r), p, out, n);
+}
+
+/* The hit boxes of the frame (cur), as segment_hits_object / segment_hits_boxes and
+ * segment_hits_ground_object test them. An aircraft's boxes grow with the shooter (hitbox_set_enlarge):
+ * the enemies' are drawn as the player's guns see them, the player's side's as the enemy's guns do. */
+static void capture_boxes(void)
+{
+    if (prog_current_id() != PROG_AP || !DSW(SIM_OBJS)) return;
+    u16 player = DSW(SIM_PLAYER);
+    u8 side = DSB(player + 0x26);
+    s16 enl_player = (s16)(2 - (s16)(s8)DSB(GUN_LEVEL)), enl_ai = 3;
+    s16 np = DSS(SIM_PLANES), n = DSS(SIM_N);
+    for (s16 i = 0; i < n; i++) {
+        u16 o = DSW((u16)(DSW(SIM_OBJS) + 2 * i));
+        u16 bxl = DSW(o + 0x24);
+        if (!bxl || !sim_alive(o)) continue;
+        s32 k = snap_obj(o);
+        if (o == player && k < 0) continue;                  /* the cockpit: the camera is inside them */
+        bool friendly = DSB(o + 0x26) == side;
+        double f = ldexp(1.0, (s8)DSB(bxl + 1));
+        if (i < np) {                                        /* aircraft: the enlargement, --hitbox-size */
+            s16 enl = friendly ? enl_ai : enl_player;
+            f *= (enl == 1 ? 1.5 : enl == 2 ? 2.0 : enl == 3 ? 4.0 : 1.0) * enh_hitbox_size / 100.0;
+        }
+        double M[9], pos[3];
+        obj_axes(DSW(o + 0x20), M);
+        for (int j = 0; j < 3; j++) pos[j] = (double)DSSL(o + 4 + 4 * j);
+        u16 bp = DSW(bxl + 6);
+        for (s16 b = 0; b < (s8)DSB(bxl); b++, bp = (u16)(bp + 12)) {
+            double lo[3], hi[3];
+            for (int j = 0; j < 3; j++) { lo[j] = DSS(bp + 2 * j) * f; hi[j] = DSS(bp + 6 + 2 * j) * f; }
+            box_add(k, friendly, lo, hi, M, pos);
+        }
+    }
+    /* ground objects: the shape's box about the object, turned by its heading, all of it in units
+     * >> the shape's shift (the object's position too, as the original subtracts it) */
+    for (u16 i = 0, di = DSW(GROUND_LIST); di && i < DSW(GROUND_N); i++, di = (u16)(di + 4)) {
+        FarPtr g = far_make(DSW(di + 2), DSW(di));
+        u16 type = rd16(g.seg, (u16)(g.off + 2));
+        u8 h[0x1A];
+        if (!shape_head(type & 0x1FFF, h, sizeof h)) continue;
+        double lo[3], hi[3];
+        if (h[0] & 0x20) {                                   /* ap_shape_box: a cube */
+            double v = (double)(((s32)gs16(h, 0x0C) * 0x94) >> 8);
+            for (int j = 0; j < 3; j++) { lo[j] = -v; hi[j] = v; }
+        } else
+            for (int j = 0; j < 3; j++) { lo[j] = gs16(h, 0x0E + 2 * j); hi[j] = gs16(h, 0x14 + 2 * j); }
+        /* the side: the group's type for a member of a group (ground_credit), else its own */
+        FarPtr grp = (type & 0x8000) ? far_make(rd16(g.seg, (u16)(g.off + 0x18)), rd16(g.seg, (u16)(g.off + 0x16))) : g;
+        u16 gt = rd16(grp.seg, grp.off) & 0x1F;
+        bool friendly = (gt == 2 && side == 0) || (gt == 0x10 && side == 1);
+        /* lrot_z2 turns world into the box's frame: local = Rz(heading) · w, so w = local · M */
+        u16 a = rd16(g.seg, (u16)(g.off + 0x14));
+        double sc = ldexp(1.0, h[3]), c = r3d_cos(a) / 16384.0 * sc, sn = r3d_sin(a) / 16384.0 * sc;
+        double M[9] = { c, -sn, 0, sn, c, 0, 0, 0, sc }, pos[3];
+        for (int j = 0; j < 3; j++) pos[j] = (double)(s32)rd32(g.seg, (u16)(g.off + 4 + 4 * j)) * sc;
+        box_add(-1, friendly, lo, hi, M, pos);
+    }
 }

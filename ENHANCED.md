@@ -86,6 +86,21 @@ resolution, instead of scaling the 320×200 picture.
   enlargement, and the bounding-radius pre-test with it (above 100 %). It changes the simulation: a film
   recorded with other settings may not play back the same.
 
+- 2026-10-08: **wireframes key** (`wireframes` action, Ctrl+Alt+G by default; the launcher's Key bindings):
+  cycles off → hit boxes → terrain (the ground dots' debug overlay, below) → off. Hit boxes: each box's
+  12 edges over the world view, green for the player's side, red for the other. Captured at the end of
+  every 3D frame (`enh_scene_end`, also re-captured by the enhanced pass) and moved with their object's
+  interpolation like its polygons; read only (`obj_matrix`'s cache is read, not filled; shape headers are
+  read with `pool_peek` / `ems_peek` instead of `shape_ptr`, which maps the shape's EMS pool):
+  * aircraft and ships (`DS:475D`, `segment_hits_boxes`): the `.BXL` boxes << the list's shift, turned by
+    the object's matrix. An aircraft's boxes depend on the shooter: enemies are drawn as the player's
+    guns see them (×1 / ×1.5 / ×2 by `DS:42D2`), the player's side as the enemy's guns do (×4), both
+    with `--hitbox-size`. The player's own are left out when the player isn't drawn (cockpit views).
+  * ground objects near low aircraft (`DS:18B0`, `segment_hits_ground_object`): the shape's box
+    (`ap_shape_box`) turned by the object's heading, with the original's units (the point and the
+    object's position >> the shape's shift). Side from the group's type as `ground_credit`: 2 is the
+    player's side when the player is side 0, 10h when side 1; any other type is drawn as enemy.
+
 ## Stage 1 design
 
 Files: `src/enhanced/enhanced.h` (hooks), `enhanced.c` (options, pixel tags, capture of the 3D frame),
@@ -279,7 +294,7 @@ after the last present ended", which with the frame's own work capped the displa
 the view. `AOTP_ENH_PROF=1` also prints `[loop]`: frames shown per second and the main thread's share in
 building frames, presenting, sleeping, timer ticks and the game's own code.
 
-Debug overlay (`--dots-debug`, Ctrl+Alt+G toggles it in the game): over the world view, the dots' ground
+Debug overlay (the terrain wireframes: `--dots-debug` starts with it, the wireframes key cycles to it): over the world view, the dots' ground
 grid (1024 units) out to the range's edge, green along the view and yellow across it (where the lines of
 a family would be under 3 pixels apart only every 2nd, 4th, ... one is drawn), cyan rings where the dots
 start fading out and at the range's edge, and the horizon (the eye-level line) in red.
@@ -302,4 +317,4 @@ start fading out and at the range's edge, and the horizon (the eye-level line) i
   that is the default of an action bound elsewhere is dropped; any other key goes through. Modifier keys
   always go through. INTRO and PS (menus, typed names) get every key as it is. The launcher keeps Esc, Tab,
   Enter, the number keys, F1 - F6 and Ctrl / Alt + F1 - F10 on their jobs; the keypad stays a second
-  stick.
+  stick. The `wireframes` action (Ctrl+Alt+G) is not sent to the game: it cycles the wireframes.

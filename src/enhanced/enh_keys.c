@@ -4,7 +4,7 @@
  * modifiers held with them (ENH_KEY_SHIFT / CTRL / ALT). While AP runs, a key bound to an action is sent
  * to the game as the action's own key (with the modifiers that key needs); a key that is the default of
  * an action bound elsewhere is dropped; every other key goes through as it is. INTRO and PS (menus,
- * typed names) always get the keys as they are. */
+ * typed names) always get the keys as they are. The wireframes key is not sent: it cycles enh_wire. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,6 +17,7 @@
 #define ALT   ENH_KEY_ALT
 #define GREY  ENH_KEY_GREY
 #define MODS  (SHIFT | CTRL | ALT)
+#define WIRES 0x8000  /* game: not a key, the wireframes (enh_wire) */
 
 /* The launcher's list (launcher/keys.cpp): the same names and defaults. */
 typedef struct {
@@ -62,6 +63,7 @@ static Action actions[] = {
     { "joystick",        ALT | 0x24,   ALT | 0x24,          0 },
     { "mouse",           ALT | 0x20,   ALT | 0x20,          0 },
     { "quit",            ALT | 0x10,   ALT | 0x10,          0 },
+    { "wireframes",      CTRL | ALT | 0x22, WIRES,          0 },
 };
 #define NACTIONS ((int)(sizeof actions / sizeof actions[0]))
 
@@ -107,6 +109,12 @@ static int push(u16 *out, int n, u16 key, bool down)
 {
     out[n] = (u16)((key & (GREY | 0x7F)) | (down ? 0 : 0x80));
     return n + 1;
+}
+
+void enh_keys_held(u8 shift, u8 ctrl, u8 alt)
+{
+    held_shift = shift; held_ctrl = ctrl; held_alt = alt;
+    mods = (u16)((held_shift ? SHIFT : 0) | (held_ctrl ? CTRL : 0) | (held_alt ? ALT : 0));
 }
 
 /* Keeps track of the modifiers; returns true for a modifier key. */
@@ -164,11 +172,17 @@ int enh_key_map(u16 x, bool down, u16 *out)
         return was == DROP ? 0 : push(out, 0, was, false);
     }
     if (*s == PASS) return -1;                     /* typematic repeat */
-    if (*s != NONE && *s != DROP) return press(out, *s);
+    if (*s == DROP) return 0;
+    if (*s != NONE) return press(out, *s);
     if (prog_current_id() != PROG_AP) return -1;
     const u16 key = (u16)(x | mods);
     for (int i = 0; i < NACTIONS; i++)
         if (actions[i].key == key) {
+            if (actions[i].game == WIRES) {
+                enh_wire = (enh_wire + 1) % ENH_WIRE_N;
+                *s = DROP;
+                return 0;
+            }
             *s = actions[i].game;
             return press(out, actions[i].game);
         }

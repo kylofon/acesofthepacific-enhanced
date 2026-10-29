@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 
+#include "../src/gamever.h"
+
 namespace {
 
 // A file of `dir` whose name matches `name` as written, in upper or in lower case
@@ -29,6 +31,17 @@ wxString MissingGameFile(const wxString& dir) {
     for (const char* name : {"INTRO.EXE", "PS.EXE", "AP.EXE", "COMMON1.DYN", "SHELL1.DYN", "SIM1.DYN", "SIM2.DYN"})
         if (!FilePresent(dir, name)) return name;
     return wxString();
+}
+
+wxString WrongRelease(const wxString& dir) {
+    long sizes[GAMEVER_FILES];
+    for (int i = 0; i < GAMEVER_FILES; ++i) {
+        const wxString path = FindFile(dir, gamever_exe[i]);
+        const wxULongLong size = path.empty() ? wxInvalidSize : wxFileName::GetSize(path);
+        sizes[i] = size == wxInvalidSize ? -1 : static_cast<long>(size.GetValue());
+    }
+    char why[512];
+    return gamever_check(sizes, true, why, sizeof why) ? wxString() : wxString::FromUTF8(why);
 }
 
 wxString LauncherDir() { return wxFileName(wxStandardPaths::Get().GetExecutablePath()).GetPath(); }

@@ -17,6 +17,7 @@ class wxSimplebook;
 class wxSlider;
 class wxSpinCtrl;
 class wxStaticBitmap;
+class wxGenericStaticBitmap;
 class wxStaticText;
 class wxTextCtrl;
 
@@ -66,7 +67,8 @@ private:
     wxSimplebook* book_ = nullptr;
     wxTextCtrl* folder_ = nullptr;
     wxTextCtrl* program_ = nullptr;
-    wxStaticBitmap* statusIcon_ = nullptr;
+    wxGenericStaticBitmap* statusIcon_ = nullptr;  // a click opens GAME_FILES when the game's files are wrong
+    bool filesWrong_ = false;
     wxStaticText* statusNote_ = nullptr;
     wxSpinCtrl* speed_ = nullptr;
     wxChoice* aspect_ = nullptr;

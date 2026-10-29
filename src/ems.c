@@ -238,3 +238,18 @@ u8 ems_realloc(u16 handle, u16 pages)
         if (phys[p][0] == handle && phys[p][1] >= pages) phys[p][0] = -1;
     return 0;
 }
+
+bool ems_peek(u16 handle, u32 off, void *out, u32 n)
+{
+    if (!valid(handle) || off + n > 4 * PAGE || off + n > (u32)handles[handle].pages * PAGE) return false;
+    u8 *o = out;
+    for (u32 i = 0; i < n; i++) {
+        u32 a = off + i;
+        s32 l = (s32)(a / PAGE);
+        const u8 *src = handles[handle].data + a;
+        for (int p = 0; p < 4; p++)                          /* mapped: the window holds the newest bytes */
+            if (phys[p][0] == handle && phys[p][1] == l) { src = frame(p) + a % PAGE; break; }
+        o[i] = *src;
+    }
+    return true;
+}

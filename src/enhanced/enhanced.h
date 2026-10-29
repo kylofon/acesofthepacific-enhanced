@@ -135,10 +135,18 @@ extern int enh_hitbox_size;            /* impacts.c: % of the aircraft hit boxes
  * layer) and their colour table (0x88 bytes: the colour under the dot -> the dot's colour). True = the
  * host draws the dots: the original's pixels are to be tagged world. */
 bool enh_ground_dots(const u8 *col);
-/* debug overlay of the dots (--dots-debug, Ctrl+Alt+G toggles it): the ground grid of the dots, green
- * along the view, yellow across it, out to the range's edge (thinned out where they would be under 3
- * pixels apart), cyan rings where the dots start fading out and at the range's edge, the horizon red */
-extern bool enh_dots_debug;
+/* wireframes over the world view (debug; the "wireframes" key, Ctrl+Alt+G by default, cycles off ->
+ * hit boxes -> terrain -> off):
+ * ENH_WIRE_HITBOX: the hit boxes against weapons, green for the player's side, red for the other: the
+ *   aircraft's and the ships' (segment_hits_boxes; the aircraft's as the player's guns see them, with
+ *   the original's enlargement and --hitbox-size) and those of the ground objects near low aircraft
+ *   (segment_hits_ground_object);
+ * ENH_WIRE_TERRAIN: the dots' debug overlay (--dots-debug starts with it): the ground grid of the dots,
+ *   green along the view, yellow across it, out to the range's edge (thinned out where they would be
+ *   under 3 pixels apart), cyan rings where the dots start fading out and at the range's edge, the
+ *   horizon red */
+enum { ENH_WIRE_OFF, ENH_WIRE_HITBOX, ENH_WIRE_TERRAIN, ENH_WIRE_N };
+extern int enh_wire;
 
 /* ---- key bindings and the flaps keys (enh_keys.c) --------------------------------------------------- *
  * A key is an XT set-1 make code, ENH_KEY_GREY = sent after an E0 prefix, with the modifiers held with
@@ -158,6 +166,9 @@ bool enh_keys_parse(const char *spec);
 /* host.c key_event: key x went down / up. Returns -1 to send x as it is, or the number of keys put in
  * out[] (at most 16; 0x80 = break, ENH_KEY_GREY = E0 prefix) to send instead. */
 int enh_key_map(u16 x, bool down, u16 *out);
+/* host.c key_event, before enh_key_map: the modifiers held as the host knows them (bit 0 = left, bit 1 =
+ * right), which stays right when their own key events are missed (focus changes) */
+void enh_keys_held(u8 shift, u8 ctrl, u8 alt);
 void enh_keys_focus_lost(void);        /* kbd.c: every key counts as up */
 
 /* ---- composition (platform/vga.c) --------------------------------------------------------------------- */

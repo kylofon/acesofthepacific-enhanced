@@ -4,6 +4,9 @@
 the options chosen in its window. It is built with [wxWidgets](https://www.wxwidgets.org/) 3.2 from the
 platform's own controls, like the faithful port's launcher it is modelled on.
 
+The game needs the files of the **CD-ROM version 1.2** of Aces of the Pacific; the floppy releases don't run.
+A copy is at the [Internet Archive](https://archive.org/details/acesot-p).
+
 ## The window
 
 * **Game files**
@@ -12,7 +15,11 @@ platform's own controls, like the faithful port's launcher it is modelled on.
     writable.
   * **Program**: `aotp-enhanced.exe` (default: beside the launcher).
   * The line below says what is missing (`INTRO.EXE`, `PS.EXE`, `AP.EXE`, `COMMON1.DYN`, `SHELL1.DYN`,
-    `SIM1.DYN`, `SIM2.DYN`). **Play** stays greyed out until the folder and the program are there.
+    `SIM1.DYN`, `SIM2.DYN`), or which release the files are from when they are not the CD-ROM version
+    1.2's (floppy 1.0, 1.01, 1.2 / Patch B, the WWII: 1946 disk; `src/gamever.c`). **Play** stays greyed
+    out until the folder holds the CD-ROM version's files and the program is there.
+  * When the game's files are missing or from another release, clicking the warning sign opens the
+    CD-ROM version 1.2 at the [Internet Archive](https://archive.org/details/acesot-p).
 * **Options**
   * **Game speed** (`--frame-ticks`, default 16): timer ticks (236.7 a second) per simulator frame. Fewer
     ticks make the world run faster; 16 is about real time at the default TIME SCALE, 8 is what the original
@@ -32,6 +39,8 @@ platform's own controls, like the faithful port's launcher it is modelled on.
   back, **Cancel** goes back without changing them. The game gets the changed ones with `--keys`. Esc,
   Tab, Enter, the number keys, F1 - F6 and Ctrl / Alt + F1 - F10 keep their jobs. The flaps have a flaps
   down key (F) and a flaps up key (Shift+F) instead of the original's one key that cycles them.
+  **Wireframes** (Ctrl+Alt+G) is a debug key of the enhanced view: it cycles the hit boxes (green for
+  your side, red for the enemy), the ground dots' grid, and off.
 * **Game settings > Graphics** shows the enhanced view's settings in the window. **Ground proximity dots**:
   **Smooth ground dots** has the enhanced view draw the dots itself at every displayed frame (off:
   `--no-dots-enh`, the original's pixels at the simulator's rate); **Range** (`--dots-range`, grid cells of

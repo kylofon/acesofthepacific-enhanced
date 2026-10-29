@@ -41,3 +41,8 @@ void ems_sync(void);
  * false if handles were allocated or freed meanwhile (nothing is undone then). */
 void ems_journal_begin(void);
 bool ems_journal_end(void);
+
+/* ENH: n bytes at `off` of the window as it would be with `handle`'s logical pages 0..3 mapped at
+ * physical pages 0..3, read without mapping anything (the window's own bytes where those pages are
+ * mapped). False if the handle has no such bytes. */
+bool ems_peek(u16 handle, u32 off, void *out, u32 n);

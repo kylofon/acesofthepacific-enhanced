@@ -225,6 +225,9 @@ FarPtr pool_map(u16 id);
 FarPtr pool_map_save(u16 id);
 /* AP 1d32:25a5 — platform.md §5.4.2 */
 void pool_unmap(u16 id);
+/* ENH: n bytes at p (a pointer into the page frame as pool_map(id) gives it) read without mapping
+ * anything; false if they can't be read */
+bool pool_peek(u16 id, FarPtr p, void *out, u16 n);
 
 /* ==== platform/ems_lib.c ========================================================================== */
 /* INTRO 17bd:003a / AP 24e5:0000 ems_alloc — platform.md §5.3 */

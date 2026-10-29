@@ -28,6 +28,14 @@ typedef struct {
     u8 fill_on, fill, edge;
 } EPoly;
 
+/* A hit box (ENH_WIRE_HITBOX): its 8 corners (bit 0 = x high, bit 1 = y high, bit 2 = z high) as the
+ * vertices, the object it moves with (-1 = none) and the player's side or not. */
+typedef struct {
+    EV3 c[8];
+    s16 obj;
+    bool friendly;
+} EBox;
+
 /* One 3D frame (render_scene). */
 typedef struct {
     bool complete;
@@ -47,6 +55,7 @@ typedef struct {
     EPoly *poly; u32 npoly, cpoly;
     EV3 *vert; u32 nvert, cvert;
     EObj *obj; u32 nobj, cobj;
+    EBox *box; u32 nbox, cbox;         /* enh_wire == ENH_WIRE_HITBOX only */
 } ESnap;
 
 #define ENH_NSNAP 4

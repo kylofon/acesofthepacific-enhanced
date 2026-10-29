@@ -22,6 +22,8 @@
 #include <wx/statbox.h>
 #include <wx/stattext.h>
 #include <wx/textctrl.h>
+#include <wx/utils.h>
+#include <wx/generic/statbmpg.h>
 
 #ifdef __WXMSW__
 #include <wx/msw/wrapcctl.h>
@@ -38,6 +40,8 @@ namespace {
 
 const char* const WEBSITE = "https://kkania.com";
 const char* const SUPPORT = "https://buymeacoffee.com/krzysztofkania";
+// The CD-ROM version 1.2 (with WWII: 1946) at the Internet Archive.
+const char* const GAME_FILES = "https://archive.org/details/acesot-p";
 const char* const SECTION = "Game";
 
 const int ID_KEY_BINDINGS = wxID_HIGHEST + 1, ID_ABOUT = wxID_HIGHEST + 2, ID_GRAPHICS = wxID_HIGHEST + 3,
@@ -243,7 +247,11 @@ wxWindow* LauncherFrame::CreateMainPage(wxWindow* parent) {
                       &browseFolder);
     program_ = PathRow(fb, filesGrid, "&Program:", "aotp-enhanced, the game.", &browseProgram);
     auto* statusRow = new wxBoxSizer(wxHORIZONTAL);
-    statusIcon_ = new wxStaticBitmap(fb, wxID_ANY, wxArtProvider::GetBitmapBundle(wxART_WARNING, wxART_MENU));
+    // The generic control: the native one gets no mouse clicks on Windows.
+    statusIcon_ = new wxGenericStaticBitmap(fb, wxID_ANY, wxArtProvider::GetBitmapBundle(wxART_WARNING, wxART_MENU));
+    statusIcon_->Bind(wxEVT_LEFT_UP, [this](wxMouseEvent&) {
+        if (filesWrong_) wxLaunchDefaultBrowser(GAME_FILES);
+    });
     statusNote_ = new wxStaticText(fb, wxID_ANY, wxEmptyString);
     statusRow->Add(statusIcon_, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, small);
     statusRow->Add(statusNote_, 1, wxALIGN_CENTER_VERTICAL);
@@ -609,16 +617,26 @@ void LauncherFrame::UpdateState() {
     const wxString dir = folder_->GetValue(), program = program_->GetValue();
     const bool haveProgram = wxFileName::FileExists(program);
     const wxString missing = MissingGameFile(dir);
+    const wxString wrong = missing.empty() ? WrongRelease(dir) : wxString();
     wxString note;
     if (!missing.empty())
         note = wxString::Format("This folder needs the game's files: %s is missing.", missing);
+    else if (!wrong.empty())
+        note = wrong;
     else if (!haveProgram)
         note = wxString::Format("%s isn't there.", wxFileName(program).GetFullName());
     else
         note = "Found the game's files.";
-    const bool ok = haveProgram && missing.empty();
+    const bool ok = haveProgram && missing.empty() && wrong.empty();
     statusIcon_->Show(!ok);
+    filesWrong_ = !missing.empty() || !wrong.empty();
+    statusIcon_->SetCursor(filesWrong_ ? wxCursor(wxCURSOR_HAND) : wxNullCursor);
+    statusIcon_->SetToolTip(filesWrong_ ? "Get the CD-ROM version 1.2 at the Internet Archive" : "");
     statusNote_->SetLabel(note);
+    // A wrong-release note is longer than the box is wide.
+    const int width = statusNote_->GetParent()->GetClientSize().GetWidth() - statusIcon_->GetSize().GetWidth()
+                      - FromDIP(40);
+    if (width > 0) statusNote_->Wrap(width);
     play_->Enable(ok);
     play_->GetParent()->Layout();
 }

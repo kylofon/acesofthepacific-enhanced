@@ -46,5 +46,9 @@ _Noreturn void prog_exit(int code);
  * reads Borland's _atexittbl). */
 int  prog_atexit(void (*fn)(void));
 
+/* Before the first program: all three executables must load and be the CD version 1.2's; otherwise a
+ * fatal error says which release the folder holds (gamever.h). */
+void prog_check_release(void);
+
 /* Loads and checks all three executables without running them (--check). Returns false on error. */
 bool prog_check_all(const char *flat_reference, char *err, size_t errlen);

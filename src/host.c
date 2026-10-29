@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "enhanced/enhanced.h"   /* ENH: key bindings */
+#include "prog.h"   /* TEMP */
 #include "opl3.h"
 
 #define OPL_RATE 49716u                /* Nuked-OPL3 native rate; SDL resamples */
@@ -529,8 +530,17 @@ static void key_event(SDL_Scancode sc, bool down)
     }
     u16 x = xt_scan(sc);
     if (!x) return;
+    SDL_Keymod km = SDL_GetModState();             /* ENH: key bindings match the modifiers SDL knows */
+    enh_keys_held((u8)((km & SDL_KMOD_LSHIFT ? 1 : 0) | (km & SDL_KMOD_RSHIFT ? 2 : 0)),
+                  (u8)((km & SDL_KMOD_LCTRL ? 1 : 0) | (km & SDL_KMOD_RCTRL ? 2 : 0)),
+                  (u8)((km & SDL_KMOD_LALT ? 1 : 0) | (km & SDL_KMOD_RALT ? 2 : 0)));
     u16 mapped[16];
     int m = enh_key_map(x, down, mapped);          /* ENH: key bindings */
+    {   /* TEMP key log */
+        static FILE *kl;
+        if (!kl) { char path[1024]; SDL_snprintf(path, sizeof path, "%skeylog.txt", SDL_GetBasePath()); kl = fopen(path, "w"); }
+        if (kl) { fprintf(kl, "sc=%d x=%03X %s sdlmod=%04X prog=%d -> %d wire=%d\n", (int)sc, x, down ? "dn" : "up", (unsigned)km, prog_current_id(), m, enh_wire); fflush(kl); }
+    }
     if (m >= 0) {
         for (int i = 0; i < m; i++) {
             u8 seq[2];
@@ -561,11 +571,6 @@ static void process_events(void)
             if (ev.key.key == SDLK_RETURN && (ev.key.mod & SDL_KMOD_ALT)) {
                 if (!ev.key.repeat)
                     SDL_SetWindowFullscreen(window, !(SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN));
-                break;
-            }
-            /* ENH: Ctrl+Alt+G toggles the ground dots' debug overlay */
-            if (ev.key.key == SDLK_G && (ev.key.mod & SDL_KMOD_CTRL) && (ev.key.mod & SDL_KMOD_ALT)) {
-                if (!ev.key.repeat) enh_dots_debug = !enh_dots_debug;
                 break;
             }
             key_event(ev.key.scancode, true);
@@ -794,13 +799,22 @@ char *host_game_path(const char *name, bool create)
     return NULL;
 }
 
+long host_game_file_size(const char *name)
+{
+    char *path = host_game_path(name, false);
+    SDL_PathInfo info;
+    long size = path && SDL_GetPathInfo(path, &info) ? (long)info.size : -1;
+    SDL_free(path);
+    return size;
+}
+
 const char *host_game_dir(void) { return game_dir; }
 
 void host_free(void *p) { SDL_free(p); }
 
 _Noreturn void host_fatal(const char *fmt, ...)
 {
-    char msg[512];
+    char msg[1024];
     va_list ap;
     va_start(ap, fmt);
     vsnprintf(msg, sizeof msg, fmt, ap);

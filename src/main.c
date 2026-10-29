@@ -31,7 +31,8 @@
  *   --dots-far-bright ENH: far speckle and wave crests: N % of the dots' colour over the ground (default 60)
  *   --dots-edge    ENH: beyond the full-size distance dots shrink to N % at the range's edge (default 35)
  *   --dots-cover   ENH: crowded dots are skipped to cover at most N % of the ground (default 8, 1..50)
- *   --dots-debug   ENH: start with the dots' debug overlay on (Ctrl+Alt+G toggles it)
+ *   --dots-debug   ENH: start with the terrain wireframes (the dots' debug overlay) on; the wireframes key
+ *                  (Ctrl+Alt+G by default) cycles off / hit boxes / terrain
  *   --plane-size   ENH: aircraft models at N % of their size (default 100, 10..100; 42 = true scale)
  *   --hitbox-size  ENH: aircraft hit boxes against weapons at N % (default 100, 10..400)
  *                  (default 2, 0..3; 0 = even spacing as the original)
@@ -132,7 +133,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--dots-far-bright") && v) { dots_far_bright = atoi(v); i++; }
         else if (!strcmp(a, "--dots-edge") && v) { dots_edge = atoi(v); i++; }
         else if (!strcmp(a, "--dots-cover") && v) { dots_cover = atoi(v); i++; }
-        else if (!strcmp(a, "--dots-debug")) enh_dots_debug = true;
+        else if (!strcmp(a, "--dots-debug")) enh_wire = ENH_WIRE_TERRAIN;
         else if (!strcmp(a, "--plane-size") && v) { plane_size = atoi(v); i++; }
         else if (!strcmp(a, "--hitbox-size") && v) { hitbox_size = atoi(v); i++; }
         else if (!strcmp(a, "--keys") && v) {
@@ -153,7 +154,7 @@ int main(int argc, char **argv)
     if (check) {
         /* no window: only the file lookup of the host is needed */
         if (!host_init_files(dir)) return 1;
-        char err[256];
+        char err[1024];
         bool ok = prog_check_all(flat_ref, err, sizeof err);
         if (!ok) fprintf(stderr, "%s\n", err);
         else printf("load segment %04X, frame pacing %d ticks\n", LOAD_SEG, host_frame_ticks());
@@ -162,6 +163,7 @@ int main(int argc, char **argv)
     }
 
     if (!host_init(dir, scale, fullscreen, aspect43)) return 1;
+    prog_check_release();     /* another release of the game: say so before anything runs */
     mem_init_machine();       /* IVT, BIOS data area */
     ems_init();               /* EMM device header, INT 67h */
     enh_init(!classic, res_scale, aa, widescreen);   /* ENH: before the frame source is installed */

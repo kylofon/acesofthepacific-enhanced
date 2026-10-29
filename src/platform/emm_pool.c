@@ -4,6 +4,9 @@
 #include "platform/rtl_priv.h"
 
 #include "video/video.h"
+#include "ems.h"
+
+#include <string.h>
 
 #define POOLS      0x615C   /* 4 x 8Eh */
 #define POOL_SIZE  0x8E
@@ -198,3 +201,16 @@ FarPtr pool_map_save(u16 id)
 
 /* AP 1d32:25a5 pool_unmap(id) */
 void pool_unmap(u16 id) { lib_ems_restore_map(PW((s16)id >> 8, P_handle)); }
+
+/* ENH: n bytes at p, a pointer into the page frame as pool_map(id) gives it, read without mapping */
+bool pool_peek(u16 id, FarPtr p, void *out, u16 n)
+{
+    u32 a = far_lin(p), f = (u32)EMS_FRAME_SEG << 4;
+    if (a < f || a + n > f + 0x10000) {                 /* not in the window: conventional memory */
+        if (a + n > MEM_SIZE) return false;
+        memcpy(out, mem + a, n);
+        return true;
+    }
+    u16 h = PW((s16)id >> 8, P_handle);
+    return h && ems_peek(h, a - f, out, n);
+}

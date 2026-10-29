@@ -17,6 +17,10 @@ bool FilePresent(const wxString& dir, const wxString& name);
 // or empty if they are all there.
 wxString MissingGameFile(const wxString& dir);
 
+// Empty if the programs in `dir` are the CD-ROM version 1.2's, the one the game runs; otherwise which
+// release they are from and what is needed (src/gamever.h).
+wxString WrongRelease(const wxString& dir);
+
 // Game settings > Graphics: the ground dots near the ground (aotp --no-dots-enh, --dots-range,
 // --dots-alt, --dots-size, --dots-full, --dots-near, --dots-scatter, --dots-far, --dots-fade,
 // --dots-speckle, --dots-far-bright, --dots-edge, --dots-cover).

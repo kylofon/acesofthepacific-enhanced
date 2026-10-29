@@ -7,6 +7,7 @@
 
 #include "codeptr.h"
 #include "game/game.h"
+#include "gamever.h"
 #include "host.h"
 #include "platform/platform.h"
 
@@ -62,6 +63,31 @@ static bool read_program(const ProgDesc *d, ExeImage *x, char *err, size_t errle
     host_free(path);
     if (ok && !check_image(d, x, err, errlen)) { mem_free_exe(x); ok = false; }
     return ok;
+}
+
+/* All three programs before the first runs, so a folder of another release is refused at the start
+ * (not after the intro) and with what it holds rather than the loader's sizes. */
+static bool check_programs(char *err, size_t errlen)
+{
+    for (int id = PROG_INTRO; id <= PROG_AP; id++) {
+        const ProgDesc *d = prog_desc(id);
+        ExeImage x;
+        if (read_program(d, &x, err, errlen)) { mem_free_exe(&x); continue; }
+        long sizes[GAMEVER_FILES];
+        bool all = true;
+        for (int i = 0; i < GAMEVER_FILES; i++) all &= (sizes[i] = host_game_file_size(gamever_exe[i])) >= 0;
+        char why[768];
+        if (all && !gamever_check(sizes, false, why, sizeof why))
+            snprintf(err, errlen, "%s\n\nGame folder: %s", why, host_game_dir());
+        return false;
+    }
+    return true;
+}
+
+void prog_check_release(void)
+{
+    char err[1024];
+    if (!check_programs(err, sizeof err)) host_fatal("%s", err);
 }
 
 /* Environment block and PSP as DOS builds them for EXEC. */
@@ -225,6 +251,7 @@ int prog_atexit(void (*fn)(void))
 
 bool prog_check_all(const char *flat_reference, char *err, size_t errlen)
 {
+    if (!check_programs(err, errlen)) return false;
     for (int id = PROG_INTRO; id <= PROG_AP; id++) {
         const ProgDesc *d = prog_desc(id);
         ExeImage x;

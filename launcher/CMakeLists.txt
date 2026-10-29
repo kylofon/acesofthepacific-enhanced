@@ -6,7 +6,7 @@
 # or, from the main project, -DAOTP_LAUNCHER=ON builds it next to aotp-enhanced.exe.
 # Needs wxWidgets 3.2 (MSYS2: mingw-w64-x86_64-wxwidgets3.2-msw; Debian and Ubuntu: libwxgtk3.2-dev).
 cmake_minimum_required(VERSION 3.24)
-project(aotplauncher LANGUAGES CXX)
+project(aotplauncher LANGUAGES C CXX)
 if(WIN32)
     enable_language(RC)
 endif()
@@ -29,6 +29,7 @@ add_executable(aotplauncher WIN32
     keys.cpp
     launcher.cpp
     settings.cpp
+    ../src/gamever.c   # which release the game folder holds, shared with the game
 )
 set_target_properties(aotplauncher PROPERTIES OUTPUT_NAME "Aces of the Pacific Enhanced" CXX_EXTENSIONS OFF)
 target_compile_features(aotplauncher PRIVATE cxx_std_17)

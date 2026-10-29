@@ -83,6 +83,7 @@ int  host_cpu_count(void);
  * host_free) or NULL if the file does not exist; with create = true the path of a new file. */
 char *host_game_path(const char *name, bool create);
 const char *host_game_dir(void);
+long  host_game_file_size(const char *name);   /* bytes; -1 if the file does not exist */
 void  host_free(void *p);
 
 /* ---- Errors: prints (and shows unless headless) a message, shuts down and exits with code 3. */

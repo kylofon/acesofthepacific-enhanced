@@ -49,6 +49,7 @@ const Action ACTIONS[] = {
     {"joystick", "Joystick on / off", ALT | 0x24, VIEWS},
     {"mouse", "Mouse on / off", ALT | 0x20, VIEWS},
     {"quit", "Quit the game", ALT | 0x10, VIEWS},
+    {"wireframes", "Wireframes: hit boxes / terrain / off", CTRL | ALT | 0x22, VIEWS},
 };
 const int ACTION_COUNT = static_cast<int>(sizeof ACTIONS / sizeof ACTIONS[0]);
 
