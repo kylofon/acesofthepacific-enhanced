@@ -1004,7 +1004,8 @@ void torp_update(FarPtr b)
             FSL(b, 0x0C) = 1;
             if (FB(b, 0x30) == 0) FB(b, 0x31) = 1;
             else FW(b, 0) |= 0x2000;
-            if (!(u8)splash_or_dust(fpu(far_add(b, 4)), 0, (u16)(DSW(0x474D) + 0x11)) || (FW(b, 0x18) & 0x4000)) {
+            /* splash_or_dust returns 1 over land: a torpedo breaks on land or after a bad drop (4000h) */
+            if ((u8)splash_or_dust(fpu(far_add(b, 4)), 0, (u16)(DSW(0x474D) + 0x11)) || (FW(b, 0x18) & 0x4000)) {
                 wpn_delete_later(b);
                 DSB(0x57E6) = 1;
             } else {

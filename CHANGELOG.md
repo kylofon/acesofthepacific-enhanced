@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Torpedoes work again: one dropped into the water was always deleted as broken (the splash test's land/water result was read the wrong way round); it now breaks only on land or after a drop too high, too fast or too steep.
+
 ## 0.2.0
 
 - The CD-ROM version 1.2 is linked at the Internet Archive (https://archive.org/details/acesot-p) in the README and `HOW TO RUN.txt`; in the launcher, clicking the warning sign beside a missing-files or other-release note opens that page.

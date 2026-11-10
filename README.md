@@ -53,6 +53,20 @@ not included.
 * If Windows says "Windows protected your PC": **More info**, then **Run anyway**.
 * Launcher settings: `%APPDATA%\Aces of the Pacific Enhanced\settings.ini`.
 
+## Supported game version
+
+Only the **CD-ROM version 1.2** of *Aces of the Pacific* (1994 readme; it includes WWII: 1946) is supported.
+The loader identifies it by the exact sizes of its three programs:
+
+| File | Size (bytes) |
+|---|---|
+| `INTRO.EXE` | 117 008 |
+| `PS.EXE` | 377 136 |
+| `AP.EXE` | 494 032 |
+
+Other releases are not supported yet: the floppy versions (1.0, 1.01, 1.2 / Patch B), the WWII: 1946
+expansion disk, the Collector's Edition (1.02) and the 1994 Sierra CD are separate builds of the game.
+
 ## Requirements
 
 * Game files: the installed DOS game (`INTRO.EXE`, `PS.EXE`, `AP.EXE`, `COMMON1.DYN`, `SHELL1.DYN`, `SIM1.DYN`,
