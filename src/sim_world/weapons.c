@@ -349,6 +349,8 @@ u16 gun_fire(s16 trigger, u16 p, u16 aim, u16 src)
     return fired;
 }
 
+static u32 dsfar(u16 off) { return (u32)cur_dgroup << 16 | off; }
+
 /* AP 0769:0637 — sim_world_wpn.md §3.4 */
 void bullet_update(FarPtr b)
 {
@@ -364,7 +366,7 @@ void bullet_update(FarPtr b)
     lvsar(lscale(step, (u16)dt_scale(DSS(g + 8))), 0x0E);
     ladd_far(far_add(b, 4), step);
     if (FW(b, 0x16) != 0) {
-        u32 h = segment_hits_ground_object(fpu(far_add(b, 4)), (u32)old);
+        u32 h = segment_hits_ground_object(fpu(far_add(b, 4)), dsfar(old));
         DSL(hit) = h;
         if (h) {
             if (FSL(b, 0x0C) < 0) splash_point(old, fpu(far_add(b, 4)));
@@ -847,7 +849,6 @@ u16 rocket_fire(u16 rack, u16 pos, u16 mblk, u16 src)
     return 1;
 }
 
-static u32 dsfar(u16 off) { return (u32)cur_dgroup << 16 | off; }
 
 /* AP 1a32:02f4 */
 void rocket_update(FarPtr b)
