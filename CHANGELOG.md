@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0
+
+- Guns now damage ground objects (fuel tanks, buildings and the like): bullets never hit them before, only bombs and rockets did (issue #3).
+
 ## 0.2.0
 
 - The CD-ROM version 1.2 is linked at the Internet Archive (https://archive.org/details/acesot-p) in the README and `HOW TO RUN.txt`; in the launcher, clicking the warning sign beside a missing-files or other-release note opens that page.
