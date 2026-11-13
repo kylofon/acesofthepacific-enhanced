@@ -101,6 +101,12 @@ resolution, instead of scaling the 320×200 picture.
     object's position >> the shape's shift). Side from the group's type as `ground_credit`: 2 is the
     player's side when the player is side 0, 10h when side 1; any other type is drawn as enemy.
 
+- 2026-11-13: **distance haze per sample** (see "Haze, sky, horizon"): under an overcast sky the ground
+  went white toward the horizon right after take-off and the haze jumped from frame to frame. Verified
+  headless: Single Mission → Ground Attack → USAAF, overcast, scripted take-off and climb
+  (`AOTP_KEYS` full throttle, stick back after the "Pull back" cue): ground and sea now haze alike and
+  the frames change smoothly.
+
 ## Stage 1 design
 
 Files: `src/enhanced/enhanced.h` (hooks), `enhanced.c` (options, pixel tags, capture of the 3D frame),
@@ -206,8 +212,13 @@ picture and the pixel tags as before), `render_scene` runs its body a second tim
 with `pal[t]` by a/255, resolved with the current DAC):
 
 * Haze colour = the horizon colour of the frame: the lowest band's colour (`sky + step/2`), `sky + 15`
-  without bands. Haze amount `1 − exp(−dist / (250000 · N))` (world units, eye distance), per vertex,
-  interpolated linearly across the polygon; lines and outlines take the polygon's mean.
+  without bands. Haze amount `1 − exp(−dist / (250000 · N))` (world units, eye distance), per sample:
+  primitives carry 1 / eye depth per vertex (linear on the screen for a plane, so exact), the distance
+  at a sample is depth · √(1 + X² + Z²) from the sample's ray slopes, the amount from a table. Lines and
+  outlines interpolate it along their length. (It was the haze per vertex interpolated linearly on the
+  screen: a large ground polygon cut at the near plane took its far vertices' haze far into the
+  foreground, so after lift-off the ground near the horizon went white while the sea beside it stayed
+  clear, and the haze jumped as the polygons' clipped outlines changed.)
 * Sky: the bands are replaced by a gradient through the sky ramp: index `sky + step · d / spacing` (d =
   pixels above the horizon; equal to the original band colour at every band centre), from the lowest band's
   colour up to `sky + 15`, interpolated between neighbouring ramp entries.

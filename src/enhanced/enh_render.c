@@ -97,32 +97,67 @@ static double haze_at(double dist)
     return 255.0 * (1.0 - exp(-dist * fog_k));
 }
 
-static void plot(double u, double v, u8 c, double a)
+/* Per-sample haze from the exact eye distance: primitives carry per vertex the reciprocal of the eye
+ * depth (q = 1/y), which is linear on the screen for any plane, so it is interpolated linearly and the
+ * distance at a sample is sqrt(1 + X² + Z²) / q, X, Z = the sample's ray slopes (hz_col[i], hz_row(j)).
+ * The haze of the distance comes from a table over dist·fog_k (HZ_N entries per unit, up to HZ_MAX). */
+#define HZ_N   256
+#define HZ_MAX 8
+static u8 hz_lut[HZ_N * HZ_MAX + 2];
+static double *hz_col;                 /* per sample column: X² */
+static int hz_ccap;
+static double hz_cy, hz_F;             /* the eye centre row (samples) and the focal length in samples */
+
+static void haze_setup(double U0, double V0, double F)
+{
+    if (hz_ccap < sbw) {
+        free(hz_col);
+        hz_col = malloc(sizeof(double) * (size_t)sbw);
+        if (!hz_col) host_fatal("enhanced view: out of memory");
+        hz_ccap = sbw;
+    }
+    for (int i = 0; i < sbw; i++) { double x = (i + 0.5 - U0) / F; hz_col[i] = x * x; }
+    hz_cy = V0; hz_F = F;
+    static double lut_k = -1;
+    if (lut_k != fog_k) {
+        for (int t = 0; t < HZ_N * HZ_MAX + 2; t++)
+            hz_lut[t] = (u8)(255.0 * (1.0 - exp(-(double)t / HZ_N)) + 0.5);
+        lut_k = fog_k;
+    }
+}
+
+static inline double hz_row(int j) { double z = (hz_cy - (j + 0.5)) / hz_F; return 1.0 + z * z; }
+
+static inline u8 haze_q(double r, int i, double q)
+{
+    if (!(q > 0)) return 255;
+    double t = sqrt(hz_col[i] + r) / q * fog_k * HZ_N;
+    return t >= HZ_N * HZ_MAX ? 255 : hz_lut[(int)(t + 0.5)];
+}
+
+static void plot(double u, double v, u8 c, double q)
 {
     int i = (int)floor(u), j = (int)floor(v);
     if (j >= bj0 && j < bj1 && i >= rlo[j] && i < rhi[j]) {
         size_t o = (size_t)j * sbw + i;
-        sbuf[o] = c; tbuf[o] = fog_col; abuf[o] = (u8)(a + 0.5); ibuf[o] = 0;
+        sbuf[o] = c; tbuf[o] = fog_col; abuf[o] = fog_on ? haze_q(hz_row(j), i, q) : 0; ibuf[o] = 0;
     }
 }
 
-/* Scanline fill (even-odd) of the rows of the band, sampled at the sample centres; fa = haze amount per
- * vertex (interpolated linearly on the screen). */
-static void fill_poly(const double *u, const double *v, int n, u8 c, const double *fa)
+/* Scanline fill (even-odd) of the rows of the band, sampled at the sample centres; fq = 1 / eye depth per
+ * vertex (linear on the screen), the haze worked out per sample. */
+static void fill_poly(const double *u, const double *v, int n, u8 c, const double *fq)
 {
     if (n < 3) return;
     double minv = v[0], maxv = v[0];
-    bool flat = true;
     for (int k = 0; k < n; k++) {
         if (v[k] < minv) minv = v[k];
         if (v[k] > maxv) maxv = v[k];
-        if (fa[k] != fa[0]) flat = false;
     }
     double j0d = ceil(minv - 0.5), j1d = floor(maxv - 0.5);
     if (j0d < bj0) j0d = bj0;
     if (j1d > bj1 - 1) j1d = bj1 - 1;
     double xs[128], as[128];
-    u8 a0 = (u8)(fa[0] + 0.5);
     for (int j = (int)j0d; j <= (int)j1d && j0d <= j1d; j++) {
         int lo = rlo[j], hi = rhi[j];
         if (lo >= hi) continue;
@@ -133,7 +168,7 @@ static void fill_poly(const double *u, const double *v, int n, u8 c, const doubl
             if ((va <= yc && yc < vb) || (vb <= yc && yc < va)) {
                 double t = (yc - va) / (vb - va);
                 xs[m] = u[l] + t * (u[k] - u[l]);
-                as[m++] = fa[l] + t * (fa[k] - fa[l]);
+                as[m++] = fq[l] + t * (fq[k] - fq[l]);
             }
         }
         for (int a = 1; a < m; a++) {                 /* insertion sort */
@@ -152,15 +187,12 @@ static void fill_poly(const double *u, const double *v, int n, u8 c, const doubl
             memset(sbuf + ro + i0, c, (size_t)(i1 - i0));
             memset(tbuf + ro + i0, fog_col, (size_t)(i1 - i0));
             memset(ibuf + ro + i0, 0, (size_t)(i1 - i0));
-            if (flat) memset(abuf + ro + i0, a0, (size_t)(i1 - i0));
+            if (!fog_on) memset(abuf + ro + i0, 0, (size_t)(i1 - i0));
             else {
-                double w = xs[a + 1] - xs[a], da = w > 1e-9 ? (as[a + 1] - as[a]) / w : 0;
-                double av = as[a] + (i0 + 0.5 - xs[a]) * da;
+                double w = xs[a + 1] - xs[a], dq = w > 1e-9 ? (as[a + 1] - as[a]) / w : 0;
+                double qv = as[a] + (i0 + 0.5 - xs[a]) * dq, r = hz_row(j);
                 u8 *ap = abuf + ro;
-                for (int i = i0; i < i1; i++, av += da) {
-                    double q = av < 0 ? 0 : av > 255 ? 255 : av;
-                    ap[i] = (u8)(q + 0.5);
-                }
+                for (int i = i0; i < i1; i++, qv += dq) ap[i] = haze_q(r, i, qv);
             }
         }
     }
@@ -207,7 +239,8 @@ static void prim_fill(const double *u, const double *v, int n, u8 c, const doubl
     npv += m;
 }
 
-static void stroke(double u0, double v0, double u1, double v1, double w, u8 c, double a)
+/* a line of width w (samples); q0, q1 = 1 / eye depth at its ends */
+static void stroke(double u0, double v0, double u1, double v1, double w, u8 c, double q0, double q1)
 {
     double dx = u1 - u0, dy = v1 - v0, len = sqrt(dx * dx + dy * dy), h = w * 0.5;
     double ex, ey;
@@ -216,7 +249,7 @@ static void stroke(double u0, double v0, double u1, double v1, double w, u8 c, d
     double nx = -ey, ny = ex;
     double U[4] = { u0 - ex + nx, u1 + ex + nx, u1 + ex - nx, u0 - ex - nx };
     double V[4] = { v0 - ey + ny, v1 + ey + ny, v1 + ey - ny, v0 - ey - ny };
-    double A[4] = { a, a, a, a };
+    double A[4] = { q0, q1, q1, q0 };
     prim_fill(U, V, 4, c, A);
 }
 
@@ -1006,6 +1039,7 @@ static void render(const ESnap *n, const ESnap *p, double x, int W, int H, doubl
     fog_on = enh_haze && n->has_sky;
     fog_col = n->has_sky ? (u8)(n->bands_on ? n->sky + (n->step >> 1) : n->sky + 0x0F) : 0;
     fog_k = 1.0 / (ENH_HAZE_DIST * (double)enh_view_dist);
+    haze_setup((n->cx + ox) * SA, n->cy * SA, n->f * SA);
     BandCtx bc = { n, { 0 }, ox, SA, P[2] };
     memcpy(bc.Mt, Mt, sizeof bc.Mt);
 
@@ -1063,7 +1097,7 @@ static void render(const ESnap *n, const ESnap *p, double x, int W, int H, doubl
     dbg.rmax = enh_dots_range * DOT_GRID; dbg.r0 = dbg.rmax * enh_dots_fade / 100.0;
 
     double lw = SA * 0.5 < 1.0 ? 1.0 : SA * 0.5;          /* outline / line width in samples */
-    double e[64][3], c[130][3], U[130], V[130], Fa[130];
+    double e[64][3], c[130][3], U[130], V[130], Fq[130];
     for (u32 k = 0; k < n->npoly; k++) {
         const EPoly *pl = &n->poly[k];
         if (n->dots && k == n->dots_at) dots_prim = nprim;
@@ -1081,20 +1115,17 @@ static void render(const ESnap *n, const ESnap *p, double x, int W, int H, doubl
         int q = m >= 2 ? near_clip(e, m, near_d, c) : 0;
         if (m == 1 && e[0][1] >= near_d) { memcpy(c[0], e[0], sizeof c[0]); q = 1; }
         if (q == 0) continue;
-        double fs = 0;
         for (int i = 0; i < q; i++) {
             double iy = n->f / c[i][1];
             U[i] = (n->cx + c[i][0] * iy + ox) * SA;
             V[i] = (n->cy - c[i][2] * iy) * SA;
-            Fa[i] = fog_on ? haze_at(sqrt(c[i][0] * c[i][0] + c[i][1] * c[i][1] + c[i][2] * c[i][2])) : 0;
-            fs += Fa[i];
+            Fq[i] = 1.0 / c[i][1];                        /* haze per sample from the depth */
         }
-        fs /= q;
         if (m == 1) continue;                             /* gfx_polygon draws nothing for one point */
-        if (m == 2) { stroke(U[0], V[0], U[q - 1], V[q - 1], lw, pl->edge, fs); continue; }
-        if (pl->fill_on) prim_fill(U, V, q, pl->fill, Fa);
+        if (m == 2) { stroke(U[0], V[0], U[q - 1], V[q - 1], lw, pl->edge, Fq[0], Fq[q - 1]); continue; }
+        if (pl->fill_on) prim_fill(U, V, q, pl->fill, Fq);
         if (!pl->fill_on || pl->edge != pl->fill)
-            for (int i = 0, l = q - 1; i < q; l = i++) stroke(U[l], V[l], U[i], V[i], lw, pl->edge, fs);
+            for (int i = 0, l = q - 1; i < q; l = i++) stroke(U[l], V[l], U[i], V[i], lw, pl->edge, Fq[l], Fq[i]);
     }
     if (n->dots && n->dots_at >= n->npoly) dots_prim = nprim;
     host_parallel((ry1 - ry0 + BAND_ROWS - 1) / BAND_ROWS, draw_band, &bc);
