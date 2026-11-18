@@ -6,6 +6,8 @@
  * (is_tandy() is 0 on the modelled AT BIOS, §3.3.8) are dropped. */
 #include "platform/plat_priv.h"
 
+#include <string.h>
+
 #include "host.h"
 #include "enhanced/enhanced.h"   /* ENH: held direction keys combined */
 #include "prog.h"
@@ -14,6 +16,11 @@
 #include "symbols_ps.h"
 
 static bool int9_hooked;              /* INT 9 vector = kbd_isr */
+/* PORT: keys whose make this ISR has seen. A program starts the moment the previous one exits, so the
+ * break of the key that ended it (Enter skipping the intro) reaches the new ISR, whose quirk turns a
+ * break without a make into a held key (the main menu then waited for Enter to be "released"). On DOS
+ * the program load took long enough for the break to reach the old handler; such breaks are dropped. */
+static bool key_made[0x59];
 
 #define BDA 0x40
 #define SHIFT_FLAGS 0x17
@@ -24,6 +31,7 @@ int kbd_install(int hook_1c)
     if (!LB(G_kbd_installed)) {
         /* INT 21h/3509h, 351Ch: old vectors saved in the code segment; INT 21h/2509h -> kbd_isr */
         int9_hooked = true;
+        memset(key_made, 0, sizeof key_made);
         if (hook_1c) host_fatal("kbd_install(1): the INT 1Ch ramp handler is not ported (never used, 3.3.7)");
         LB(G_kbd_enhanced) = 0;
         if (is_tandy())                                   /* PORT: Tandy 1000 paths not ported */
@@ -243,7 +251,15 @@ u16 bios_key_get(void)
 
 void kbd_host_byte(u8 raw)
 {
-    if (int9_hooked && prog_layout) kbd_isr(raw);
+    if (int9_hooked && prog_layout) {
+        u8 sc = raw & 0x7F;
+        if (sc < 0x59) {                                  /* PORT: see key_made */
+            if (!(raw & 0x80)) key_made[sc] = true;
+            else if (!key_made[sc]) return;
+            else key_made[sc] = false;
+        }
+        kbd_isr(raw);
+    }
     else bios_int9(raw);
 }
 
@@ -252,6 +268,7 @@ void kbd_host_focus_lost(void)
     /* Keys released outside the window never send their break: release every held key. */
     enh_keys_focus_lost();                                /* ENH: key bindings */
     if (!int9_hooked || !prog_layout) return;
+    memset(key_made, 0, sizeof key_made);                 /* PORT: their real breaks come later */
     for (int sc = 1; sc < 0x59; sc++)
         if (LP(G_key_state)[sc] & 1) kbd_isr((u8)(sc | 0x80));
 }
