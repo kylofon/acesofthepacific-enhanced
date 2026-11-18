@@ -106,6 +106,18 @@ resolution, instead of scaling the 320×200 picture.
   headless: Single Mission → Ground Attack → USAAF, overcast, scripted take-off and climb
   (`AOTP_KEYS` full throttle, stick back after the "Pull back" cue): ground and sea now haze alike and
   the frames change smoothly.
+- 2026-11-13: **far ground no longer blinks** (sea showing through wedge-shaped cracks between far
+  ground tiles, looking like a river flashing in and out, from frame to frame). Three captures were
+  camera-dependent or unstable, and the host's near clip of tiles reaching behind the camera magnified
+  them: (1) each object's axes came from M_OBJ_EYE · Mc^T, whose 14-bit rounding changes as the view
+  turns, so still tiles "turned" by ~1e-4 between frames and the interpolation swung their far corners
+  by hundreds of units; now CS_M_OBJ (the object's own axes) where it agrees; (2) the vertices were
+  the game's eye coordinates, off by up to thousands of units in height far away (14-bit matrix times
+  the distance, 16-bit path rounded to 2^shift); now rebuilt from the shape's vertex table and the
+  exact pose, where they agree within the game's error; (3) arena macro members were keyed by their
+  record address, re-made at every gather, so a tile could be matched with another; now by shape and
+  position (`enh_key`, scene.c). Verified headless on a recorded film (Mission Recorder → BLINKING,
+  low-level turn toward the city): blinking samples per frame 55 → 12, the rest at the film's start.
 
 ## Stage 1 design
 

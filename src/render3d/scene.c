@@ -511,11 +511,25 @@ s16 sort_compare(const R3dCmp *c)
 /* ================================================================================================
  * 5440 — the 3D frame */
 
+/* ENH: the enhanced view's key of an object (matched between frames to interpolate it): its address,
+ * except for the macro members of the per-frame arena, whose records are re-made at each gather at
+ * addresses that shift as members come and go (a far ground tile was "moved" toward another tile's
+ * place from frame to frame, its edges swinging); those by their shape and position instead. */
+static u32 enh_key(FarPtr o)
+{
+    u32 a = far_lin(ds_far(W_TMP_ARENA)), l = far_lin(o);
+    if (l < a || l >= a + DSW(W_ARENA_SIZE1)) return l;
+    u32 h = 2166136261u;
+    const u8 *p = far_mp(far_add(o, 2));
+    for (int i = 0; i < 14; i++) h = (h ^ p[i]) * 16777619u;
+    return 0x40000000u | (h & 0x3FFFFFFFu);                /* above any linear address */
+}
+
 /* AP 5440:0269 — the DS:36CC callback */
 void draw_object(FarPtr o)
 {
     u16 f = rd16(o.seg, o.off), t = (u16)(f & 0x1F);
-    enh_object(far_lin(o), t == 3 || t == 0x0B);           /* ENH: this object's; 0Bh = aircraft shadow */
+    enh_object(enh_key(o), t == 3 || t == 0x0B);           /* ENH: this object's; 0Bh = aircraft shadow */
     u16 cnt = DSW(S_DRAW_COUNT); DSW(S_DRAW_COUNT)++;
     if (!(cnt & 1) && !enh_pass) vcr_poll_panel();         /* ENH: no input in the enhanced pass */
     if (t == 0x0F) parachute_draw(o);                      /* then continues below */

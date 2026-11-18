@@ -93,6 +93,7 @@ _Noreturn void host_fatal(const char *fmt, ...);
  *      SDL_AUDIO_DRIVER=dummy):
  *   AOTP_SNAPSHOT_DIR=dir     every presented frame >= AOTP_SNAPSHOT_MS (default 1000) after the
  *                             previous snapshot is saved as snapNNNN.png
+ *   AOTP_SNAPSHOT_FAST="<from>-<to>:<ms>"  ENH: between those seconds after start-up, every <ms> instead
  *   AOTP_KEYS="<seconds>:<xt>[+<xt>...],..."  presses (in order) and releases (in reverse) the XT keys
  *                             that many seconds after start-up; "p" after the codes only presses (held),
  *                             "r" only releases: "9:48p,20:48r" holds Up for 11 s. Grey keys are written

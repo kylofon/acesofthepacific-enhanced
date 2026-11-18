@@ -50,6 +50,9 @@ static s32 cur_obj = -1;
 static bool cur_aircraft;              /* draw_object's object is an aircraft */
 static double cur_eye_scale = 1.0;
 static double cur_R[9];
+static double cur_D[3], cur_vscale;    /* the instance's offset from the eye (world axes), vertex units */
+static double cur_A[9];                /* the instance's local -> world axes from CS_M_OBJ (not the camera) */
+static bool cur_flat;                  /* shadow: vertices flattened, not as in the shape */
 static bool tr_on;                     /* enh_tracer */
 static double tr_back[3];
 
@@ -361,6 +364,21 @@ void enh_ts_object(u16 eye_shift)
     u8 *K = cs_blk();
     bool shadow = DSW(DS_SHADOW_MODE) != 0;
     cur_eye_scale = ldexp(1.0, eye_shift & 31);
+    for (int i = 0; i < 3; i++) cur_D[i] = (double)KSL(CS_D_WORLD + 4 * i);
+    cur_vscale = ldexp(1.0, (s16)KW(CS_VTX_SHIFT) + (s16)KW(CS_OBJ_DOWN));
+    cur_flat = shadow;
+    {   /* CS_M_OBJ is world -> local here (transposed by obj_set_orientation; type byte 12h as in
+         * vec_rotate_n: <= 0 identity, 1 a turn about z only); its transpose turns local -> world */
+        const u8 *m = K + CS_M_OBJ;
+        s8 t = (s8)m[0x12];
+        for (int r = 0; r < 3; r++)
+            for (int c = 0; c < 3; c++) {
+                double a = (double)(s16)(u16)(m[6 * r + 2 * c] | m[6 * r + 2 * c + 1] << 8) / 16384.0;
+                if (t <= 0 || (t == 1 && (r == 2 || c == 2))) a = r == c;
+                cur_A[3 * r + c] = a;
+            }
+        enh_orthonormalize(cur_A);
+    }
     double Moe[9];
     mat_read(K + CS_M_OBJ_EYE, Moe);
     /* R = Moe · Mc^T: local -> world axes */
@@ -372,6 +390,15 @@ void enh_ts_object(u16 eye_shift)
             cur_R[3 * i + j] = a;
         }
     enh_orthonormalize(cur_R);
+    /* Moe carries the camera's 14-bit rounding, which changes as the view turns: a still object seemed
+     * to turn by ~1e-4 between frames, and the renderer's interpolation swung a big ground tile's far
+     * corners by hundreds of units. The object's own axes instead, where they agree. */
+    double dmax = 0;
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++) dmax = fmax(dmax, fabs(cur_R[3 * i + j] - cur_A[3 * j + i]));
+    if (dmax < 0.01)
+        for (int i = 0; i < 3; i++)
+            for (int j = 0; j < 3; j++) cur_R[3 * i + j] = cur_A[3 * j + i];
     if (!cur_key) { cur_obj = -1; return; }
     cur->obj = grow(cur->obj, &cur->cobj, cur->nobj + 1, sizeof(EObj));
     EObj *o = &cur->obj[cur->nobj];
@@ -408,9 +435,30 @@ void enh_poly(bool wide)
         }
         for (int k = 0; k < 3; k++) e[k] *= cur_eye_scale;
         /* d = e · Mc^T */
-        pend_v[i].x = (float)(e[0] * Mc[0] + e[1] * Mc[1] + e[2] * Mc[2]);
-        pend_v[i].y = (float)(e[0] * Mc[3] + e[1] * Mc[4] + e[2] * Mc[5]);
-        pend_v[i].z = (float)(e[0] * Mc[6] + e[1] * Mc[7] + e[2] * Mc[8]);
+        double d[3] = { e[0] * Mc[0] + e[1] * Mc[1] + e[2] * Mc[2],
+                        e[0] * Mc[3] + e[1] * Mc[4] + e[2] * Mc[5],
+                        e[0] * Mc[6] + e[1] * Mc[7] + e[2] * Mc[8] };
+        /* The 16-bit path's eye coordinates are rounded to cur_eye_scale (2^shift: kilometres for a big
+         * far ground shape); near-clipped here, a triangle reaching behind the camera swung its far edges
+         * by pixels from frame to frame, far land and rivers blinking. The vertex again from the shape's
+         * table and the instance's exact pose, where it agrees with the game's within that rounding. */
+        if (!cur_flat) {
+            u16 es = KW(CS_VTX_KEY + 2), vo = (u16)(bx * 3 + KW(CS_VTX_KEY));
+            double v[3] = { (s16)rd16(es, vo) * cur_vscale, (s16)rd16(es, (u16)(vo + 2)) * cur_vscale,
+                            (s16)rd16(es, (u16)(vo + 4)) * cur_vscale };
+            double x[3];
+            bool ok = true;
+            /* the game's own error: the rounding, and its 14-bit matrices times the distance */
+            double tol = 4.0 * cur_eye_scale + 8.0 + 2e-3 * sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+            for (int k = 0; k < 3; k++) {
+                x[k] = cur_D[k] + v[0] * cur_A[3 * k] + v[1] * cur_A[3 * k + 1] + v[2] * cur_A[3 * k + 2];
+                if (fabs(x[k] - d[k]) > tol) ok = false;
+            }
+            if (ok) memcpy(d, x, sizeof d);
+        }
+        pend_v[i].x = (float)d[0];
+        pend_v[i].y = (float)d[1];
+        pend_v[i].z = (float)d[2];
     }
     pend_n = n;
     pend_ok = true;

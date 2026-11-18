@@ -221,14 +221,28 @@ static void snapshot(void)
     static const char *dir;
     static bool checked;
     static Uint64 interval = SDL_NS_PER_SECOND;
+    static double fast_from = -1, fast_to = -1;
+    static Uint64 fast_interval;
     if (!checked) {
         dir = SDL_getenv("AOTP_SNAPSHOT_DIR");
         const char *ms = SDL_getenv("AOTP_SNAPSHOT_MS");
         if (ms && SDL_atoi(ms) > 0) interval = (Uint64)SDL_atoi(ms) * SDL_NS_PER_MS;
+        const char *fast = SDL_getenv("AOTP_SNAPSHOT_FAST");   /* "<from s>-<to s>:<ms>" */
+        if (fast) {
+            char *e;
+            fast_from = SDL_strtod(fast, &e);
+            if (*e == '-') fast_to = SDL_strtod(e + 1, &e);
+            fast_interval = *e == ':' ? (Uint64)SDL_atoi(e + 1) * SDL_NS_PER_MS : 0;
+        }
         checked = true;
     }
     if (!dir) return;
-    if (snap_n && SDL_GetTicksNS() - snap_last_ns < interval) return;
+    Uint64 iv = interval;
+    if (fast_to >= 0) {
+        double now = (double)(SDL_GetTicksNS() - clock_start_ns) / 1e9;
+        if (now >= fast_from && now <= fast_to) iv = fast_interval;
+    }
+    if (snap_n && SDL_GetTicksNS() - snap_last_ns < iv) return;
     save_snapshot(dir, NULL);
 }
 
