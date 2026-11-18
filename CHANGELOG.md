@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0
+
+- Torpedoes no longer always break on entering the water (#4).
+- Enhanced view: no more flickering haze and far terrain at low level.
+- Enhanced view: the vehicle viewer and the view behind the end-of-mission dialog are drawn at full resolution.
+- The main menu no longer freezes until Enter is pressed after the intro.
+
 ## 0.3.0
 
 - Guns now damage ground objects (fuel tanks, buildings and the like): bullets never hit them before, only bombs and rockets did (issue #3).
