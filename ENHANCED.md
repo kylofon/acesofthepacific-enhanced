@@ -118,6 +118,14 @@ resolution, instead of scaling the 320×200 picture.
   record address, re-made at every gather, so a tile could be matched with another; now by shape and
   position (`enh_key`, scene.c). Verified headless on a recorded film (Mission Recorder → BLINKING,
   low-level turn toward the city): blinking samples per frame 55 → 12, the rest at the film's start.
+- 2026-11-18: **vehicle viewer at full resolution** (View Vehicles: aircraft and ships). PS draws the
+  model with the same 3Space code; `view.c vw_render` now captures it as a scene of its own
+  (`enh_viewer_begin/end`): no sky or haze, no interpolation keys, the backdrop (sky bands and deck,
+  drawn before the model) saved per snapshot and used as the render's background, and the whole 3D
+  window tagged "world" so the model's outline is the render's, not the original's pixels.
+- 2026-11-18: **the view behind the end-of-mission dialog stays enhanced**. The dialog copies the 3D
+  view between pages with latch copies (`drv_vga.c latch_byte`), which stamped the copied pixels "2D";
+  a VRAM-to-VRAM copy now keeps the source's tags (`enh_tag_copy`).
 
 ## Stage 1 design
 
@@ -182,7 +190,7 @@ Recorder → DEMOAG → Load, Play, Cockpit).
 * `--widescreen`: the original culls objects against its 320-pixel window, so objects outside it are not
   in the side columns (they appear when their bounding sphere reaches the window); cockpit art ends at the
   320-pixel edges.
-* The PS program's 3D (aircraft viewer) and the INTRO are not re-rendered (scaled only).
+* The INTRO's 3D is not re-rendered (scaled only). The PS viewer's model is (see the 2026-11-18 entry).
 * Polygon outlines/lines are drawn ½ original pixel wide; the dither colour `DS:26CF` is ignored (AP's
   span fill does not dither).
 * The launcher has no controls for the new options yet (pass them on the command line).

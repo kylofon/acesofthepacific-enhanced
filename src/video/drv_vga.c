@@ -39,7 +39,11 @@ static void latch_byte(u16 dseg, u16 dofs, u16 sseg, u16 sofs, u8 mask)
     u8 latch[4];
     for (int p = 0; p < 4; p++) latch[p] = vget(sseg, sofs, p);
     for (int p = 0; p < 4; p++)
-        if (mask & (1 << p)) vput(dseg, dofs, p, latch[p]);
+        if (mask & (1 << p)) {
+            vput(dseg, dofs, p, latch[p]);
+            u8 *d = vmem(dseg, dofs, p), *s = vmem(sseg, sofs, p);   /* ENH: tags copied too */
+            if (d && s) enh_tag_copy(d, s);
+        }
 }
 
 static const u8 mask_left[4] = { 0x0F, 0x0E, 0x0C, 0x08 };    /* cs:01F5 / 091E */

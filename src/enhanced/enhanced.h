@@ -44,11 +44,18 @@ static inline void enh_tag(const u8 *vram_byte)
 {
     if (enh_vtag) enh_vtag[vram_byte - vga_vram()] = enh_vclass;
 }
+/* a VRAM-to-VRAM copy: the destination keeps the source's tag (the 3D view copied between pages) */
+static inline void enh_tag_copy(const u8 *dst_byte, const u8 *src_byte)
+{
+    if (enh_vtag) enh_vtag[dst_byte - vga_vram()] = enh_vtag[src_byte - vga_vram()];
+}
 void enh_vram_cleared(void);           /* mode set / unchained: the whole memory was cleared */
 
 /* ---- 3D scene capture (render3d) ---------------------------------------------------------------------- */
 void enh_scene_begin(void);            /* scene.c render_scene: camera, window and light are set */
 void enh_scene_end(void);              /* scene.c render_scene: end of the 3D frame */
+void enh_viewer_begin(void);           /* shell_ui/view.c vw_render: the PS aircraft / ship viewer's model */
+void enh_viewer_end(void);
 void enh_sky(u16 sky, u16 sea);        /* horizon.c draw_sky: base colours (bands from the detail level) */
 void enh_sky_end(void);
 void enh_sky_callback(bool inside);    /* horizon.c call_cb: sun, moon, stars are not re-drawn */

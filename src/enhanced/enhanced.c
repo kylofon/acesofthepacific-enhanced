@@ -210,12 +210,13 @@ void enh_orthonormalize(double M[9])
 }
 
 static bool capturing(void) { return cur != NULL; }
+static bool viewer;                                       /* the PS viewer's model is being captured */
 static void capture_boxes(void);
 
 void enh_scene_begin(void)
 {
     cur = NULL;
-    if (!enabled || prog_current_id() != PROG_AP) return;
+    if (!enabled || (prog_current_id() != PROG_AP && !viewer)) return;
     ESnap *s;
     if (!enh_pass) scene_t0 = host_ns();
     if (enh_pass) {                                       /* the same frame again: same slot and number */
@@ -238,6 +239,7 @@ void enh_scene_begin(void)
     s->f = (double)KW(CS_FOCAL);
     s->near_d = s->f / 8.0;                               /* draw_object: set_near(n - 3) */
     s->has_sky = false;
+    s->bg_pic = viewer;
     s->dots = false;
     s->npoly = s->nvert = s->nobj = s->nbox = 0;
     cur = s;
@@ -256,6 +258,36 @@ void enh_scene_end(void)
     if (!enh_pass) { last_main = cur; enh_prof(PROF_SCENE, host_ns() - scene_t0); }
     cur = NULL;
     enh_vclass = ENH_TAG_2D;
+}
+
+/* The PS viewer (view.c vw_render) draws its model with the same 3Space code: captured as a scene of its
+ * own (no sky, no interpolation keys); the backdrop stays the original's art. */
+static u32 page_px(u16 page, int x, int y)     /* the VRAM byte of pixel (x, y) of an unchained page */
+{
+    return (((u32)(u16)(page - 0xA000) * 16 + (u32)y * 80 + (u32)(x >> 2)) * 4 + (u32)(x & 3)) % VGA_VRAM_SIZE;
+}
+
+void enh_viewer_begin(void)
+{
+    viewer = true;
+    enh_scene_begin();
+    viewer = false;
+    if (!cur) return;
+    if (!cur->bg && !(cur->bg = malloc(320 * 200))) host_fatal("enhanced view: out of memory");
+    const u8 *v = vga_vram();
+    for (int y = 0; y < 200; y++)
+        for (int x = 0; x < 320; x++) cur->bg[y * 320 + x] = v[page_px(cur->page, x, y)];
+}
+
+/* the whole 3D window is composed from the render (the backdrop and the model), not only the model's
+ * original pixels: its outline is the render's */
+void enh_viewer_end(void)
+{
+    if (cur && enh_vtag)
+        for (int y = cur->wy1 < 0 ? 0 : cur->wy1; y <= cur->wy2 && y < 200; y++)
+            for (int x = cur->wx1 < 0 ? 0 : cur->wx1; x <= cur->wx2 && x < 320; x++)
+                enh_vtag[page_px(cur->page, x, y)] = ENH_TAG_WORLD;
+    enh_scene_end();
 }
 
 /* ------------------------------------------------------------------------------ Stage 2: enhanced pass */

@@ -858,7 +858,14 @@ static void draw_horizon(const ESnap *s, const double *Mt, double ox, double SA,
         for (int q = 0; q < nr; q++) {
             size_t o = (size_t)j * sbw + (size_t)run[q][0], n = (size_t)(run[q][1] - run[q][0]);
             memset(ibuf + o, 0, n);
-            if (!s->has_sky) { memset(sbuf + o, 0, n); memset(abuf + o, 0, n); }
+            if (!s->has_sky && s->bg_pic && s->bg) {      /* the viewer: its backdrop, before the model */
+                int py = (int)((j + 0.5) / SA);
+                for (size_t k = 0; k < n; k++) {
+                    int px = (int)((run[q][0] + (int)k + 0.5) / SA - ox);
+                    sbuf[o + k] = px >= 0 && px < 320 && py >= 0 && py < 200 ? s->bg[py * 320 + px] : 0;
+                }
+                memset(abuf + o, 0, n);
+            } else if (!s->has_sky) { memset(sbuf + o, 0, n); memset(abuf + o, 0, n); }
             else if (!fog_on) memset(abuf + o, 0, n);
         }
     }

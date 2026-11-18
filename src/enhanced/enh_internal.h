@@ -47,6 +47,8 @@ typedef struct {
     s16 wx1, wx2, wy1, wy2;            /* the 3D window, inclusive (original pixels) */
     double cx, cy, f, near_d;
     bool has_sky, bands_on;
+    bool bg_pic;                       /* no sky: the background is bg (PS viewer) */
+    u8 *bg;                            /* bg_pic: the page's 320x200 palette indices before the model */
     u8 sky, sea, bands, step;
     u16 spacing;
     bool dots;                         /* enh_ground_dots: drawn before polygon dots_at */

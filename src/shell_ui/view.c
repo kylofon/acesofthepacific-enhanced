@@ -2,6 +2,8 @@
  * shell_ui_career.md §2. The 3D part is shell_data's view3d module on top of the PS 3Space copy. */
 #include "shell_ui/sui_a_priv.h"
 
+#include "enhanced/enhanced.h"   /* ENH: the viewer's model at full resolution */
+
 #define TBL_VW      fd(0x4B1E, 0x000D)
 #define VW_ITEM1_Y  0x25                 /* offset in 4b1e of item 1's y: the view's lower edge */
 #define VW_PITCH_T  0x4456               /* s16: PITCH_.DAT table slot */
@@ -301,7 +303,9 @@ static void vw_render(s16 y0)
     vw_draw_sky(y0);
     DSB(CLIP_ON) = 1;
     R3D_FLAG = 1;
+    enh_viewer_begin();                                  /* ENH: the model drawn again at full resolution */
     view3d_draw_scene();
+    enh_viewer_end();
     DSB(CLIP_ON) = 0;
 }
 
